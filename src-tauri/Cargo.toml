@@ -38,6 +38,9 @@ getrandom = "0.2"
 hex = "0.4"
 url = "2"
 
+# Force bundled SQLite (avoids needing system sqlite3.lib)
+libsqlite3-sys = { version = "0.30", features = ["bundled"] }
+
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
