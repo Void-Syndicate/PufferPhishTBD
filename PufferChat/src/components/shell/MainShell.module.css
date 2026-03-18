@@ -1,0 +1,122 @@
+/* Main Application Shell — AOL Desktop */
+
+.shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Menu Bar */
+.menuBar {
+  display: flex;
+  gap: 0;
+  background: var(--win-bg);
+  border-bottom: 1px solid var(--win-border-shadow);
+  padding: 0 2px;
+}
+
+.menuItem {
+  padding: 3px 8px;
+  font-size: var(--font-size-base);
+  cursor: pointer;
+}
+
+.menuItem:hover {
+  background: var(--aol-blue);
+  color: var(--aol-white);
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--win-bg);
+  padding: 4px 4px;
+  border-bottom: 2px solid;
+  border-bottom-color: var(--win-border-shadow);
+}
+
+.toolBtn {
+  font-family: var(--font-system);
+  font-size: 10px;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toolBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.toolSpacer {
+  flex: 1;
+}
+
+/* Main Content */
+.mainContent {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 240px;
+  min-width: 200px;
+  border-right: 2px solid var(--win-border-shadow);
+  overflow-y: auto;
+  background: var(--win-bg);
+}
+
+.chatArea {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--aol-white);
+}
+
+.welcomeMessage {
+  text-align: center;
+  color: var(--win-border-shadow);
+}
+
+.welcomeIcon {
+  font-size: 64px;
+  margin-bottom: 8px;
+}
+
+.welcomeMessage h2 {
+  font-family: var(--font-system);
+  font-size: 14px;
+  color: var(--aol-blue);
+  margin-bottom: 4px;
+}
+
+.welcomeMessage p {
+  font-size: var(--font-size-base);
+  margin-bottom: 4px;
+}
+
+.welcomeHint {
+  font-size: 10px;
+  font-style: italic;
+}
+
+/* Status Bar */
+.statusBar {
+  display: flex;
+  justify-content: space-between;
+  background: var(--statusbar-bg);
+  border-top: 2px solid;
+  border-top-color: var(--win-border-shadow);
+  padding: 2px 6px;
+  font-size: 10px;
+}
+
+.statusItem {
+  color: var(--statusbar-text);
+}

@@ -1,0 +1,146 @@
+/* ============================================
+   PufferChat — AOL Classic Theme
+   Inspired by AOL 3.0-5.0 / Windows 95 era
+   ============================================ */
+
+:root {
+  /* === AOL Color Palette === */
+  --aol-blue: #004B87;
+  --aol-blue-light: #0066CC;
+  --aol-blue-dark: #003366;
+  --aol-yellow: #FFD700;
+  --aol-white: #FFFFFF;
+  --aol-gray-light: #C0C0C0;
+  --aol-gray-medium: #808080;
+  --aol-gray-dark: #404040;
+  --aol-black: #000000;
+
+  /* === Window Chrome === */
+  --win-bg: #C0C0C0;
+  --win-titlebar: #000080;
+  --win-titlebar-text: #FFFFFF;
+  --win-titlebar-inactive: #808080;
+  --win-border-light: #FFFFFF;
+  --win-border-dark: #404040;
+  --win-border-shadow: #808080;
+
+  /* === Typography === */
+  --font-system: "MS Sans Serif", "Microsoft Sans Serif", "Segoe UI", Tahoma, Geneva, sans-serif;
+  --font-mono: "Fixedsys", "Courier New", monospace;
+  --font-chat: "Trebuchet MS", "MS Sans Serif", Arial, sans-serif;
+  --font-size-base: 11px;
+  --font-size-chat: 12px;
+  --font-size-title: 11px;
+
+  /* === Input Fields === */
+  --input-bg: #FFFFFF;
+  --input-border: inset 2px 2px var(--win-border-dark), inset -2px -2px var(--win-border-light);
+  --input-text: #000000;
+
+  /* === Buddy List === */
+  --buddy-online: #00AA00;
+  --buddy-away: #CCAA00;
+  --buddy-offline: #808080;
+  --buddy-idle: #CC8800;
+
+  /* === Chat === */
+  --chat-bg: #FFFFFF;
+  --chat-sent: #004B87;
+  --chat-received: #000000;
+  --chat-system: #808080;
+  --chat-link: #0000FF;
+  --chat-timestamp: #999999;
+
+  /* === Status Bar === */
+  --statusbar-bg: #C0C0C0;
+  --statusbar-text: #000000;
+}
+
+/* === Global Reset === */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  background: var(--win-bg);
+  color: var(--aol-black);
+  -webkit-font-smoothing: none; /* Preserve pixel font rendering */
+  -moz-osx-font-smoothing: unset;
+  user-select: none;
+}
+
+/* === AOL App Container === */
+.aol-app {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* === Classic 3D Border Utilities === */
+.border-raised {
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+}
+
+.border-sunken {
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.border-etched {
+  border: 2px solid;
+  border-color: var(--win-border-shadow) var(--win-border-light) var(--win-border-light) var(--win-border-shadow);
+}
+
+/* === Scrollbar Styling (Win95) === */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--win-bg);
+  border: 1px solid var(--win-border-shadow);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #D0D0D0;
+}
+
+::-webkit-scrollbar-button {
+  display: block;
+  width: 16px;
+  height: 16px;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+}
+
+/* === Focus Styles === */
+input:focus, textarea:focus, select:focus {
+  outline: 1px dotted var(--aol-black);
+  outline-offset: -1px;
+}
+
+/* === Selection === */
+::selection {
+  background: var(--aol-blue);
+  color: var(--aol-white);
+}

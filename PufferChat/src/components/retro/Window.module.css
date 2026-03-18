@@ -1,0 +1,86 @@
+/* Classic Win95/AOL Window Chrome */
+
+.window {
+  display: flex;
+  flex-direction: column;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  box-shadow: 1px 1px 0 var(--aol-black);
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, var(--win-titlebar), var(--aol-blue-light));
+  padding: 2px 3px;
+  min-height: 22px;
+  cursor: default;
+}
+
+.titleLeft {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.titleIcon {
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+}
+
+.titleText {
+  color: var(--win-titlebar-text);
+  font-family: var(--font-system);
+  font-size: var(--font-size-title);
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.titleButtons {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.titleBtn {
+  width: 16px;
+  height: 14px;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--font-system);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.titleBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.titleBtnClose {
+  margin-left: 2px;
+}
+
+.btnMinimize, .btnMaximize, .btnClose {
+  font-size: 8px;
+  font-weight: bold;
+  color: var(--aol-black);
+}
+
+.content {
+  flex: 1;
+  overflow: auto;
+  padding: 4px;
+}

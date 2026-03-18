@@ -1,0 +1,37 @@
+[package]
+name = "pufferchat"
+version = "0.1.0"
+description = "Secure Matrix client with retro AOL aesthetic"
+authors = ["Void Syndicate"]
+edition = "2021"
+
+[lib]
+name = "pufferchat_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+anyhow = "1"
+tokio = { version = "1", features = ["full"] }
+log = "0.4"
+env_logger = "0.11"
+
+# Matrix SDK
+matrix-sdk = { version = "0.10", features = ["e2e-encryption", "sqlite"] }
+
+# Secure storage
+keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
+
+# Crypto utilities
+zeroize = { version = "1", features = ["derive"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

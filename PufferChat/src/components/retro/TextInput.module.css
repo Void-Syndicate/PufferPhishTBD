@@ -1,0 +1,33 @@
+/* Classic sunken text input */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: var(--aol-black);
+}
+
+.input {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  padding: 3px 4px;
+  min-height: 21px;
+}
+
+.input::placeholder {
+  color: var(--win-border-shadow);
+}
+
+.input:disabled {
+  background: var(--win-bg);
+  color: var(--win-border-shadow);
+}

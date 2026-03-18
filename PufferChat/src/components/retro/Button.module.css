@@ -1,0 +1,57 @@
+/* Classic 3D Beveled Button */
+
+.button {
+  font-family: var(--font-system);
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.button:active:not(:disabled) {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  padding-left: 1px;
+  padding-top: 1px;
+}
+
+.button:focus-visible {
+  outline: 1px dotted var(--aol-black);
+  outline-offset: -4px;
+}
+
+.button:disabled {
+  color: var(--win-border-shadow);
+  cursor: default;
+  text-shadow: 1px 1px 0 var(--win-border-light);
+}
+
+/* Variants */
+.primary {
+  font-weight: bold;
+  outline: 2px solid var(--aol-black);
+  outline-offset: -1px;
+}
+
+/* Sizes */
+.sm {
+  font-size: 10px;
+  padding: 2px 8px;
+  min-height: 20px;
+}
+
+.md {
+  font-size: var(--font-size-base);
+  padding: 3px 16px;
+  min-height: 23px;
+}
+
+.lg {
+  font-size: 12px;
+  padding: 4px 24px;
+  min-height: 28px;
+}

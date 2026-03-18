@@ -1,0 +1,148 @@
+/* AOL Sign-On Screen */
+
+.backdrop {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #000033 0%, #000066 40%, #003399 70%, #0066CC 100%);
+  position: relative;
+}
+
+.loginContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px 16px;
+}
+
+/* Logo Area */
+.logoArea {
+  text-align: center;
+  padding: 12px 0 8px;
+}
+
+.logoTriangle {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.logoText {
+  font-family: var(--font-system);
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--aol-blue);
+  margin: 0;
+}
+
+.logoTagline {
+  font-size: 10px;
+  color: var(--win-border-shadow);
+  margin-top: 2px;
+}
+
+/* Form */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
+
+.error {
+  background: #FFF0F0;
+  border: 1px solid #CC0000;
+  color: #CC0000;
+  font-size: 10px;
+  padding: 4px 8px;
+}
+
+.footer {
+  text-align: center;
+  border-top: 1px solid var(--win-border-shadow);
+  padding-top: 8px;
+}
+
+.version {
+  font-size: 9px;
+  color: var(--win-border-shadow);
+}
+
+/* Dialup Connection Animation */
+.dialupOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.dialupContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+}
+
+.runningMan {
+  font-size: 32px;
+  animation: run 0.6s steps(2) infinite;
+}
+
+@keyframes run {
+  0% { transform: translateX(-4px); }
+  100% { transform: translateX(4px); }
+}
+
+.dialupSteps {
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.dialupSteps p {
+  color: var(--win-border-shadow);
+}
+
+.stepActive {
+  color: var(--aol-black) !important;
+  font-weight: bold;
+}
+
+.dialupProgress {
+  width: 100%;
+}
+
+.progressBar {
+  height: 16px;
+  background: var(--aol-white);
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  width: 30%;
+  background: var(--aol-blue);
+  animation: progress 2s ease-in-out infinite;
+}
+
+@keyframes progress {
+  0% { width: 0%; }
+  50% { width: 70%; }
+  100% { width: 100%; }
+}

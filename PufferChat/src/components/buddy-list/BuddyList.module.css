@@ -1,0 +1,145 @@
+/* AOL Buddy List */
+
+.buddyList {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: var(--font-size-base);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: linear-gradient(180deg, var(--aol-blue), var(--aol-blue-dark));
+  color: var(--aol-white);
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.headerIcon {
+  font-size: 16px;
+}
+
+.headerTitle {
+  font-family: var(--font-system);
+}
+
+.list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+
+.loading, .empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--win-border-shadow);
+  font-size: 10px;
+}
+
+/* Collapsible Group */
+.group {
+  margin-bottom: 2px;
+}
+
+.groupHeader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  background: var(--win-bg);
+  font-weight: bold;
+  font-size: 10px;
+}
+
+.groupHeader:hover {
+  background: #D0D0D0;
+}
+
+.expandIcon {
+  font-size: 8px;
+  width: 12px;
+  text-align: center;
+}
+
+.groupTitle {
+  color: var(--aol-blue-dark);
+}
+
+.groupCount {
+  color: var(--win-border-shadow);
+  font-weight: normal;
+}
+
+.groupItems {
+  padding-left: 8px;
+}
+
+/* Room Item */
+.roomItem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: var(--font-size-base);
+}
+
+.roomItem:hover {
+  background: var(--aol-blue);
+  color: var(--aol-white);
+}
+
+.roomItem:hover .roomName {
+  color: var(--aol-white);
+}
+
+.roomItem:hover .lockIcon {
+  filter: brightness(2);
+}
+
+.selected {
+  background: var(--aol-blue);
+  color: var(--aol-white);
+}
+
+.selected .roomName {
+  color: var(--aol-white);
+}
+
+.presenceIcon {
+  font-size: 12px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.roomName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--aol-black);
+}
+
+.unread {
+  font-weight: bold;
+}
+
+.lockIcon {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.unreadBadge {
+  background: #CC0000;
+  color: var(--aol-white);
+  font-size: 9px;
+  font-weight: bold;
+  padding: 0 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
