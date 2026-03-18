@@ -4,8 +4,6 @@
 /// SECURITY NOTE: No message content is logged. Only room IDs and event types
 /// are used for debugging. All content stays in the encrypted pipeline.
 
-use log::{debug, warn};
-
 /// Sync state tracking
 #[derive(Debug, Clone, PartialEq)]
 pub enum SyncState {

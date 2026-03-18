@@ -1,11 +1,8 @@
 use anyhow::Result;
 use matrix_sdk::{
     config::SyncSettings,
-    ruma::{
-        api::client::session::login::v3::Response as LoginResponse,
-        OwnedUserId,
-    },
-    Client,
+    ruma::OwnedUserId,
+    Client, SessionMeta,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -112,13 +109,19 @@ impl MatrixClient {
             .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
 
-        // Restore the session
-        let session = matrix_sdk::matrix_auth::MatrixSession {
-            meta: matrix_sdk::SessionMeta {
-                user_id: user_id.try_into().map_err(|e: matrix_sdk::ruma::IdParseError| AppError::Auth(e.to_string()))?,
-                device_id: device_id.try_into().map_err(|e: matrix_sdk::ruma::IdParseError| AppError::Auth(e.to_string()))?,
+        // Parse user_id and device_id
+        let parsed_user_id: matrix_sdk::ruma::OwnedUserId = user_id
+            .try_into()
+            .map_err(|e: matrix_sdk::ruma::IdParseError| AppError::Auth(e.to_string()))?;
+        let parsed_device_id: matrix_sdk::ruma::OwnedDeviceId = device_id.into();
+
+        // Build session for restoration
+        let session = matrix_sdk::authentication::matrix::MatrixSession {
+            meta: SessionMeta {
+                user_id: parsed_user_id,
+                device_id: parsed_device_id,
             },
-            tokens: matrix_sdk::matrix_auth::MatrixSessionTokens {
+            tokens: matrix_sdk::authentication::matrix::MatrixSessionTokens {
                 access_token: access_token.to_string(),
                 refresh_token: None,
             },
@@ -171,19 +174,18 @@ impl MatrixClient {
 
             let unread = room.unread_notification_counts();
             
-            let member_count = room
-                .joined_members_count();
+            let member_count = room.joined_members_count();
 
             summaries.push(RoomSummary {
                 room_id: room.room_id().to_string(),
                 name,
                 topic,
-                avatar_url: None, // TODO: resolve avatar URL
+                avatar_url: None,
                 is_direct,
                 is_encrypted,
                 unread_count: unread.notification_count,
                 highlight_count: unread.highlight_count,
-                last_message: None, // TODO: get last message from timeline
+                last_message: None,
                 last_message_timestamp: None,
                 member_count,
             });

@@ -29,6 +29,9 @@ matrix-sdk = { version = "0.10", features = ["e2e-encryption", "sqlite"] }
 # Secure storage
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
 
+# Directories
+dirs = "6"
+
 # Crypto utilities
 zeroize = { version = "1", features = ["derive"] }
 
