@@ -1,7 +1,7 @@
-mod matrix;
 mod commands;
-mod store;
 mod error;
+mod matrix;
+mod store;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -31,6 +31,16 @@ pub fn run() {
             commands::matrix_logout,
             commands::get_rooms,
             commands::start_sync,
+            commands::get_room_messages,
+            commands::send_message,
+            commands::send_reply,
+            commands::edit_message,
+            commands::delete_message,
+            commands::send_reaction,
+            commands::remove_reaction,
+            commands::send_typing,
+            commands::mark_read,
+            commands::get_room_members,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PufferChat");

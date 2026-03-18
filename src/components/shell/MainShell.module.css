@@ -1,4 +1,4 @@
-/* Main Application Shell — AOL Desktop */
+﻿/* Main Application Shell â€” AOL Desktop */
 
 .shell {
   height: 100%;
@@ -74,14 +74,15 @@
 .chatArea {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   background: var(--aol-white);
+  overflow: hidden;
 }
 
 .welcomeMessage {
   text-align: center;
   color: var(--win-border-shadow);
+  margin: auto;
 }
 
 .welcomeIcon {
@@ -120,3 +121,5 @@
 .statusItem {
   color: var(--statusbar-text);
 }
+
+

@@ -17,6 +17,15 @@ pub enum AppError {
 
     #[error("Internal error: {0}")]
     Internal(String),
+
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
+    #[error("Room not found: {0}")]
+    RoomNotFound(String),
+
+    #[error("Event not found: {0}")]
+    EventNotFound(String),
 }
 
 // Convert to string for Tauri IPC (Tauri requires serializable errors)

@@ -1,15 +1,17 @@
 /// Tauri IPC Commands
-/// 
+///
 /// All frontend ↔ backend communication flows through these commands.
 /// Each command validates input and returns structured results.
-/// 
+///
 /// SECURITY: No secrets are logged. All errors are sanitized before
 /// returning to the frontend.
 
 use tauri::State;
 
 use crate::error::AppError;
-use crate::matrix::client::{LoginResult, MatrixClient, RoomSummary};
+use crate::matrix::client::{
+    LoginResult, MatrixClient, PaginationResult, RoomMember, RoomSummary,
+};
 use crate::store::keychain;
 use crate::AppState;
 
@@ -34,7 +36,7 @@ pub async fn matrix_login(
         return Err(AppError::Auth("Password is required".into()));
     }
 
-    // Strict URL validation — parse and verify scheme + host
+    // Strict URL validation
     let parsed_url = url::Url::parse(&homeserver)
         .map_err(|_| AppError::Auth("Invalid homeserver URL".into()))?;
 
@@ -43,12 +45,12 @@ pub async fn matrix_login(
         .host_str()
         .ok_or_else(|| AppError::Auth("Homeserver URL must have a valid host".into()))?;
 
-    // Reject userinfo in URL (e.g., https://evil@legit.com)
     if !parsed_url.username().is_empty() || parsed_url.password().is_some() {
-        return Err(AppError::Auth("Homeserver URL must not contain credentials".into()));
+        return Err(AppError::Auth(
+            "Homeserver URL must not contain credentials".into(),
+        ));
     }
 
-    // Enforce HTTPS, allow localhost/127.0.0.1 over HTTP for dev
     let is_local = host == "localhost" || host == "127.0.0.1" || host == "::1";
     if scheme != "https" && !is_local {
         return Err(AppError::Auth(
@@ -59,10 +61,9 @@ pub async fn matrix_login(
         return Err(AppError::Auth("Invalid URL scheme".into()));
     }
 
-    // Perform login — access_token returned separately, never sent to frontend
-    let (client, result, access_token) = MatrixClient::login(&homeserver, &username, password).await?;
+    let (client, result, access_token) =
+        MatrixClient::login(&homeserver, &username, password).await?;
 
-    // Store session in OS keychain (access_token stays backend-only)
     keychain::store_session(
         &result.user_id,
         &homeserver,
@@ -70,7 +71,6 @@ pub async fn matrix_login(
         &result.device_id,
     )?;
 
-    // Store client in app state
     let mut client_lock = state.matrix_client.lock().await;
     *client_lock = Some(client);
 
@@ -87,7 +87,6 @@ pub async fn matrix_logout(state: State<'_, AppState>) -> Result<(), AppError> {
         client.logout().await?;
     }
 
-    // Clear stored session
     keychain::clear_session()?;
 
     *client_lock = None;
@@ -103,10 +102,142 @@ pub async fn get_rooms(state: State<'_, AppState>) -> Result<Vec<RoomSummary>, A
     client.get_rooms().await
 }
 
-/// Start the sync loop
+/// Start the sync loop with event emission
 #[tauri::command]
-pub async fn start_sync(state: State<'_, AppState>) -> Result<(), AppError> {
+pub async fn start_sync(
+    state: State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
-    client.start_sync().await
+    client.start_sync_with_events(app_handle).await
+}
+
+/// Get paginated messages for a room
+#[tauri::command]
+pub async fn get_room_messages(
+    state: State<'_, AppState>,
+    room_id: String,
+    from: Option<String>,
+    limit: Option<u32>,
+) -> Result<PaginationResult, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    let limit = limit.unwrap_or(50).min(100); // Cap at 100
+    client.get_room_messages(&room_id, from, limit).await
+}
+
+/// Send a text message to a room
+#[tauri::command]
+pub async fn send_message(
+    state: State<'_, AppState>,
+    room_id: String,
+    body: String,
+) -> Result<String, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.send_message(&room_id, &body).await
+}
+
+/// Send a reply to a specific message
+#[tauri::command]
+pub async fn send_reply(
+    state: State<'_, AppState>,
+    room_id: String,
+    body: String,
+    reply_to_event_id: String,
+) -> Result<String, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.send_reply(&room_id, &body, &reply_to_event_id).await
+}
+
+/// Edit an existing message
+#[tauri::command]
+pub async fn edit_message(
+    state: State<'_, AppState>,
+    room_id: String,
+    event_id: String,
+    new_body: String,
+) -> Result<String, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.edit_message(&room_id, &event_id, &new_body).await
+}
+
+/// Redact (delete) a message
+#[tauri::command]
+pub async fn delete_message(
+    state: State<'_, AppState>,
+    room_id: String,
+    event_id: String,
+    reason: Option<String>,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client
+        .delete_message(&room_id, &event_id, reason.as_deref())
+        .await
+}
+
+/// Send emoji reaction to a message
+#[tauri::command]
+pub async fn send_reaction(
+    state: State<'_, AppState>,
+    room_id: String,
+    event_id: String,
+    emoji: String,
+) -> Result<String, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.send_reaction(&room_id, &event_id, &emoji).await
+}
+
+/// Remove a reaction
+#[tauri::command]
+pub async fn remove_reaction(
+    state: State<'_, AppState>,
+    room_id: String,
+    reaction_event_id: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client
+        .remove_reaction(&room_id, &reaction_event_id)
+        .await
+}
+
+/// Send typing indicator
+#[tauri::command]
+pub async fn send_typing(
+    state: State<'_, AppState>,
+    room_id: String,
+    typing: bool,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.send_typing(&room_id, typing).await
+}
+
+/// Mark a room as read (send read receipt)
+#[tauri::command]
+pub async fn mark_read(
+    state: State<'_, AppState>,
+    room_id: String,
+    event_id: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.mark_read(&room_id, &event_id).await
+}
+
+/// Get members of a room
+#[tauri::command]
+pub async fn get_room_members(
+    state: State<'_, AppState>,
+    room_id: String,
+) -> Result<Vec<RoomMember>, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.get_room_members(&room_id).await
 }

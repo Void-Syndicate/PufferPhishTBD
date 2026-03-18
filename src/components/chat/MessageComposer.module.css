@@ -1,0 +1,114 @@
+﻿.composer {
+  background: var(--win-bg);
+  border-top: 2px solid;
+  border-top-color: var(--win-border-shadow);
+  padding: 4px;
+}
+
+.fontToolbar {
+  display: flex;
+  gap: 2px;
+  padding: 2px 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--win-border-shadow);
+}
+
+.fontBtn {
+  font-family: var(--font-system);
+  font-size: 10px;
+  background: var(--win-bg);
+  border: 1px solid var(--win-border-shadow);
+  padding: 1px 6px;
+  cursor: pointer;
+}
+
+.fontBtn:hover {
+  background: #D0D0D0;
+}
+
+.replyPreview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  margin-bottom: 4px;
+  background: #E8E8E8;
+  border-left: 3px solid var(--aol-blue);
+  font-size: 10px;
+  color: var(--win-border-shadow);
+}
+
+.replyText {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.replyCancelBtn {
+  background: none;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 2px;
+  color: var(--win-border-shadow);
+}
+
+.replyCancelBtn:hover {
+  color: #CC0000;
+}
+
+.inputRow {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.textInput {
+  flex: 1;
+  font-family: var(--font-chat);
+  font-size: var(--font-size-chat);
+  padding: 4px 6px;
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  background: var(--input-bg);
+  resize: none;
+  min-height: 28px;
+  max-height: 80px;
+  outline: none;
+}
+
+.sendBtn {
+  font-family: var(--font-system);
+  font-size: 11px;
+  font-weight: bold;
+  background: var(--aol-yellow);
+  color: var(--aol-black);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  padding: 4px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 28px;
+}
+
+.sendBtn:hover {
+  background: #FFE44D;
+}
+
+.sendBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.sendBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.typingIndicator {
+  font-size: 10px;
+  color: var(--chat-timestamp);
+  padding: 2px 8px;
+  height: 16px;
+  font-style: italic;
+}

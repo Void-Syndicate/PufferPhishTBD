@@ -1,0 +1,52 @@
+﻿.messageList {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--chat-bg);
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  padding: 4px 0;
+}
+
+.loadMore {
+  text-align: center;
+  padding: 6px;
+  font-size: 10px;
+  color: var(--chat-timestamp);
+}
+
+.loadMoreBtn {
+  font-family: var(--font-system);
+  font-size: 10px;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  padding: 2px 12px;
+  cursor: pointer;
+}
+
+.loadMoreBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--chat-timestamp);
+  font-size: 11px;
+}
+
+.dateSep {
+  text-align: center;
+  padding: 4px 0;
+  font-size: 9px;
+  color: var(--chat-timestamp);
+}
+
+.dateSepLine {
+  display: inline-block;
+  padding: 1px 8px;
+  background: var(--win-bg);
+  border: 1px solid var(--win-border-shadow);
+}

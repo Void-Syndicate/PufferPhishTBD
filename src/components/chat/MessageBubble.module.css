@@ -1,0 +1,121 @@
+﻿.bubble {
+  padding: 2px 8px;
+  font-family: var(--font-chat);
+  font-size: var(--font-size-chat);
+  position: relative;
+}
+
+.bubble:hover {
+  background: #F0F0F0;
+}
+
+.redacted {
+  opacity: 0.5;
+  font-style: italic;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 1px;
+}
+
+.senderName {
+  font-weight: bold;
+  font-size: 11px;
+}
+
+.senderSelf {
+  color: var(--chat-sent);
+}
+
+.senderOther {
+  color: var(--chat-received);
+}
+
+.timestamp {
+  font-size: 9px;
+  color: var(--chat-timestamp);
+}
+
+.editBadge {
+  font-size: 9px;
+  color: var(--chat-timestamp);
+  font-style: italic;
+}
+
+.body {
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+.replyIndicator {
+  border-left: 3px solid var(--aol-blue);
+  padding-left: 6px;
+  margin-bottom: 2px;
+  font-size: 10px;
+  color: var(--win-border-shadow);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.reactionBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  padding: 0 4px;
+  background: var(--win-bg);
+  border: 1px solid var(--win-border-shadow);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.reactionBadge:hover {
+  background: #D0D0D0;
+}
+
+.contextMenu {
+  position: fixed;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  padding: 2px 0;
+  z-index: 200;
+  min-width: 120px;
+  box-shadow: 2px 2px 0 var(--win-border-shadow);
+}
+
+.contextMenuItem {
+  display: block;
+  width: 100%;
+  padding: 3px 16px;
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.contextMenuItem:hover {
+  background: var(--aol-blue);
+  color: var(--aol-white);
+}
+
+.contextSep {
+  height: 1px;
+  background: var(--win-border-shadow);
+  margin: 2px 0;
+}

@@ -232,7 +232,10 @@
 - VULN-003 (HIGH): Insufficient URL validation → FIXED
 - VULN-004 (HIGH): CSP unsafe-inline → FIXED
 - npm audit: 0 vulnerabilities
-- Rust: cargo audit pending (Rust toolchain not installed on host)
+- Rust cargo audit (2026-03-18): 3 vulnerabilities in matrix-sdk deps, 20 warnings (GTK3 unmaintained — Tauri upstream)
+  - matrix-sdk-base 0.10.0: panic + DoS vectors → mitigate by upgrading to 0.10.1+ when available
+  - matrix-sdk-crypto 0.10.0: sender spoofing by HS admin → accept risk (requires compromised HS)
+  - GTK3/glib warnings: Tauri upstream dependency, no action needed on Windows
 
 ---
 

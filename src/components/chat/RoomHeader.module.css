@@ -1,0 +1,42 @@
+﻿.roomHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: linear-gradient(180deg, var(--aol-blue), var(--aol-blue-dark));
+  color: var(--aol-white);
+  border-bottom: 2px solid;
+  border-bottom-color: var(--win-border-dark);
+  min-height: 32px;
+}
+
+.roomName {
+  font-family: var(--font-system);
+  font-weight: bold;
+  font-size: 12px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roomMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+.encryptedBadge {
+  font-size: 11px;
+}
+
+.topic {
+  font-size: 10px;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}

@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode } from "react";
 import styles from "./Window.module.css";
 
 interface WindowProps {
