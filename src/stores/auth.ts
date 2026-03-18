@@ -5,7 +5,6 @@ export interface AuthState {
   userId: string | null;
   homeserver: string;
   displayName: string | null;
-  accessToken: string | null;
   deviceId: string | null;
   isConnecting: boolean;
   error: string | null;
@@ -17,18 +16,18 @@ export interface AuthState {
     userId: string;
     homeserver: string;
     displayName: string | null;
-    accessToken: string;
     deviceId: string;
   }) => void;
   logout: () => void;
 }
 
+// NOTE: accessToken is intentionally absent from frontend state.
+// It lives only in the Rust backend and OS keychain.
 export const useAuthStore = create<AuthState>((set) => ({
   isLoggedIn: false,
   userId: null,
   homeserver: "https://matrix.org",
   displayName: null,
-  accessToken: null,
   deviceId: null,
   isConnecting: false,
   error: null,
@@ -36,13 +35,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   setConnecting: (connecting) => set({ isConnecting: connecting, error: null }),
   setError: (error) => set({ error, isConnecting: false }),
 
-  login: ({ userId, homeserver, displayName, accessToken, deviceId }) =>
+  login: ({ userId, homeserver, displayName, deviceId }) =>
     set({
       isLoggedIn: true,
       userId,
       homeserver,
       displayName,
-      accessToken,
       deviceId,
       isConnecting: false,
       error: null,
@@ -53,7 +51,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       isLoggedIn: false,
       userId: null,
       displayName: null,
-      accessToken: null,
       deviceId: null,
       isConnecting: false,
       error: null,

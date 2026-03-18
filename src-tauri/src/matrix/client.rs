@@ -20,8 +20,9 @@ pub struct MatrixClient {
 pub struct LoginResult {
     pub user_id: String,
     pub display_name: Option<String>,
-    pub access_token: String,
     pub device_id: String,
+    // NOTE: access_token intentionally excluded from frontend response.
+    // Token stays in Rust backend + OS keychain only.
 }
 
 #[derive(Serialize, Clone)]
@@ -41,17 +42,21 @@ pub struct RoomSummary {
 
 impl MatrixClient {
     /// Create a new Matrix client and log in with password
+    /// Returns (client, login_result, access_token).
+    /// access_token is returned separately so it can be stored in keychain
+    /// without ever being sent to the frontend.
     pub async fn login(
         homeserver: &str,
         username: &str,
         mut password: String,
-    ) -> Result<(Self, LoginResult), AppError> {
-        // Build client with SQLite store for persistence
+    ) -> Result<(Self, LoginResult, String), AppError> {
+        // Build client with encrypted SQLite store
         let data_dir = get_data_dir();
+        let db_passphrase = get_or_create_db_passphrase()?;
         
         let client = Client::builder()
             .homeserver_url(homeserver)
-            .sqlite_store(&data_dir, None)
+            .sqlite_store(&data_dir, Some(&db_passphrase))
             .build()
             .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
@@ -78,11 +83,14 @@ impl MatrixClient {
             .flatten()
             .map(|n| n.to_string());
 
+        // Store access token only in keychain — never send to frontend
+        let access_token_str = response.access_token.to_string();
+        let device_id_str = response.device_id.to_string();
+
         let result = LoginResult {
             user_id: user_id.to_string(),
             display_name,
-            access_token: response.access_token.to_string(),
-            device_id: response.device_id.to_string(),
+            device_id: device_id_str.clone(),
         };
 
         let matrix_client = Self {
@@ -90,7 +98,7 @@ impl MatrixClient {
             user_id,
         };
 
-        Ok((matrix_client, result))
+        Ok((matrix_client, result, access_token_str))
     }
 
     /// Restore session from stored access token
@@ -101,10 +109,11 @@ impl MatrixClient {
         device_id: &str,
     ) -> Result<Self, AppError> {
         let data_dir = get_data_dir();
+        let db_passphrase = get_or_create_db_passphrase()?;
 
         let client = Client::builder()
             .homeserver_url(homeserver)
-            .sqlite_store(&data_dir, None)
+            .sqlite_store(&data_dir, Some(&db_passphrase))
             .build()
             .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
@@ -223,4 +232,27 @@ fn get_data_dir() -> PathBuf {
     dir.push("matrix-store");
     std::fs::create_dir_all(&dir).ok();
     dir
+}
+
+/// Get or generate a passphrase for SQLite encryption.
+/// Stored in OS keychain — never touches disk in plaintext.
+fn get_or_create_db_passphrase() -> Result<String, AppError> {
+    use crate::store::keychain;
+    use zeroize::Zeroize;
+
+    const KEY: &str = "db_passphrase";
+
+    if let Some(passphrase) = keychain::get_secret(KEY)? {
+        return Ok(passphrase);
+    }
+
+    // Generate 32 random bytes as hex (64 chars)
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes)
+        .map_err(|e| AppError::Internal(format!("RNG failure: {}", e)))?;
+    let passphrase = hex::encode(bytes);
+    bytes.zeroize();
+
+    keychain::store_secret(KEY, &passphrase)?;
+    Ok(passphrase)
 }

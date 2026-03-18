@@ -34,24 +34,39 @@ pub async fn matrix_login(
         return Err(AppError::Auth("Password is required".into()));
     }
 
-    // Ensure HTTPS (no plaintext connections)
-    if !homeserver.starts_with("https://") {
-        // Allow localhost for development
-        if !homeserver.contains("localhost") && !homeserver.contains("127.0.0.1") {
-            return Err(AppError::Auth(
-                "Homeserver must use HTTPS for security".into(),
-            ));
-        }
+    // Strict URL validation — parse and verify scheme + host
+    let parsed_url = url::Url::parse(&homeserver)
+        .map_err(|_| AppError::Auth("Invalid homeserver URL".into()))?;
+
+    let scheme = parsed_url.scheme();
+    let host = parsed_url
+        .host_str()
+        .ok_or_else(|| AppError::Auth("Homeserver URL must have a valid host".into()))?;
+
+    // Reject userinfo in URL (e.g., https://evil@legit.com)
+    if !parsed_url.username().is_empty() || parsed_url.password().is_some() {
+        return Err(AppError::Auth("Homeserver URL must not contain credentials".into()));
     }
 
-    // Perform login
-    let (client, result) = MatrixClient::login(&homeserver, &username, password).await?;
+    // Enforce HTTPS, allow localhost/127.0.0.1 over HTTP for dev
+    let is_local = host == "localhost" || host == "127.0.0.1" || host == "::1";
+    if scheme != "https" && !is_local {
+        return Err(AppError::Auth(
+            "Homeserver must use HTTPS for security".into(),
+        ));
+    }
+    if scheme != "https" && scheme != "http" {
+        return Err(AppError::Auth("Invalid URL scheme".into()));
+    }
 
-    // Store session in OS keychain
+    // Perform login — access_token returned separately, never sent to frontend
+    let (client, result, access_token) = MatrixClient::login(&homeserver, &username, password).await?;
+
+    // Store session in OS keychain (access_token stays backend-only)
     keychain::store_session(
         &result.user_id,
         &homeserver,
-        &result.access_token,
+        &access_token,
         &result.device_id,
     )?;
 

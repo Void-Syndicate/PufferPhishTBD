@@ -9,7 +9,6 @@ import styles from "./LoginScreen.module.css";
 interface LoginResponse {
   user_id: string;
   display_name: string | null;
-  access_token: string;
   device_id: string;
 }
 
@@ -42,7 +41,6 @@ export default function LoginScreen() {
         userId: result.user_id,
         homeserver,
         displayName: result.display_name,
-        accessToken: result.access_token,
         deviceId: result.device_id,
       });
     } catch (err) {

@@ -46,7 +46,7 @@
 - [ ] Test with self-signed cert (should reject)
 - [ ] MitM proxy test (Burp/mitmproxy) — verify cert validation
 - [ ] DNS rebinding attack test
-- [ ] Verify no plaintext HTTP requests leak
+- [x] Verify no plaintext HTTP requests leak *(2026-03-18: strict URL validation, HTTPS enforced)*
 - [ ] Check for hardcoded hostnames/IPs
 
 ### 2. Application Layer — Rust Backend
@@ -120,10 +120,10 @@
 | File permissions | Restrict DB file to user-only (0600 on *nix) | Phase 1 |
 
 **Vuln Testing Checklist:**
-- [ ] Verify tokens not in plaintext config files
-- [ ] Check Windows Credential Manager entries are properly scoped
+- [x] Verify tokens not in plaintext config files *(2026-03-18: tokens in keychain only, removed from frontend)*
+- [x] Check Windows Credential Manager entries are properly scoped *(2026-03-18: scoped to "pufferchat" service)*
 - [ ] Memory dump analysis — search for tokens/keys in process memory
-- [ ] Verify file permissions on SQLite DB and config files
+- [x] Verify file permissions on SQLite DB and config files *(2026-03-18: SQLite now encrypted with keychain-stored passphrase)*
 - [ ] Test auto-lock actually clears sensitive data from memory
 - [ ] Check temp files for leaked secrets
 - [ ] Verify secure delete actually overwrites (not just unlink)

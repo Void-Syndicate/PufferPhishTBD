@@ -34,6 +34,9 @@ dirs = "6"
 
 # Crypto utilities
 zeroize = { version = "1", features = ["derive"] }
+getrandom = "0.2"
+hex = "0.4"
+url = "2"
 
 [features]
 default = ["custom-protocol"]
