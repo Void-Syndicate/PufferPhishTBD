@@ -2,6 +2,7 @@
 import { useMemo, useEffect } from "react";
 import { useState, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
 import { TimelineMessage, useMessagesStore } from "../../stores/messages";
 import { useAuthStore } from "../../stores/auth";
 import { useReadReceiptStore } from "../../stores/readReceipts";
@@ -125,7 +126,8 @@ function MediaFile({ message }: { message: TimelineMessage }) {
     setDownloading(true);
     try {
       const filename = message.mediaInfo?.filename || message.body || "file";
-      const savePath = `downloads/${filename}`;
+      const savePath = await save({ defaultPath: filename, title: "Save File" });
+      if (!savePath) return; // User cancelled
       await invoke("download_media", { mxcUrl: message.mediaUrl, savePath });
     } catch (e) {
       console.error("Download failed:", e);
@@ -183,7 +185,11 @@ export default function MessageBubble({ message, roomId, allMessages }: MessageB
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY });
+    const menuWidth = 180;
+    const menuHeight = 160;
+    const x = Math.min(e.clientX, window.innerWidth - menuWidth);
+    const y = Math.min(e.clientY, window.innerHeight - menuHeight);
+    setContextMenu({ x, y });
   }, []);
 
   useEffect(() => {

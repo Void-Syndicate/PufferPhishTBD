@@ -1,4 +1,4 @@
-use matrix_sdk::{
+﻿use matrix_sdk::{
     config::SyncSettings,
     room::Room,
     ruma::{
@@ -78,12 +78,14 @@ pub struct MediaInfo {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct TimelineMessage {
-    pub id: String,
+    pub event_id: String,
     pub sender: String,
+    pub sender_name: Option<String>,
     pub body: String,
     pub formatted_body: Option<String>,
     pub timestamp: i64,
     pub is_edited: bool,
+    pub is_redacted: bool,
     pub reply_to: Option<String>,
     pub reactions: Vec<Reaction>,
     pub msg_type: String,
@@ -148,6 +150,15 @@ pub struct PresenceUpdate {
     pub last_active_ago: Option<u64>,
 }
 
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RedactionSyncEvent {
+    pub room_id: String,
+    pub redacted_event_id: String,
+    pub sender: String,
+    pub reason: Option<String>,
+}
 
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -426,6 +437,35 @@ impl MatrixClient {
             },
         );
 
+        // Redaction event handler
+        let handle_clone = app_handle.clone();
+        client.add_event_handler(
+            move |event: matrix_sdk::ruma::events::room::redaction::OriginalSyncRoomRedactionEvent, room: Room| {
+                let handle = handle_clone.clone();
+                async move {
+                    let redacted_id = event.content.redacts
+                        .as_ref()
+                        .map(|id: &OwnedEventId| id.to_string())
+                        .unwrap_or_default();
+
+                    if redacted_id.is_empty() {
+                        log::warn!("Redaction event missing redacted event ID");
+                        return;
+                    }
+
+                    let payload = RedactionSyncEvent {
+                        room_id: room.room_id().to_string(),
+                        redacted_event_id: redacted_id,
+                        sender: event.sender.to_string(),
+                        reason: event.content.reason.clone(),
+                    };
+                    if let Err(e) = handle.emit("matrix://redaction", &payload) {
+                        log::error!("Failed to emit redaction event: {}", e);
+                    }
+                }
+            },
+        );
+
         // Presence events
         let handle_clone = app_handle.clone();
         client.add_event_handler(
@@ -595,11 +635,13 @@ impl MatrixClient {
                 (last_msg, last_ts)
             };
 
+            let avatar_url = room.avatar_url().map(|u| u.to_string());
+
             summaries.push(RoomSummary {
                 room_id: room.room_id().to_string(),
                 name,
                 topic,
-                avatar_url: None,
+                avatar_url,
                 is_direct,
                 is_encrypted,
                 unread_count: unread.notification_count,
@@ -683,7 +725,7 @@ impl MatrixClient {
 
         // Attach aggregated reactions to messages
         for msg in &mut messages {
-            if let Some(raw_reactions) = reaction_map.remove(&msg.id) {
+            if let Some(raw_reactions) = reaction_map.remove(&msg.event_id) {
                 let mut emoji_map: HashMap<String, Vec<String>> = HashMap::new();
                 for (emoji, sender) in raw_reactions {
                     emoji_map.entry(emoji).or_default().push(sender);
@@ -1509,12 +1551,14 @@ fn timeline_message_from_sync_event(event: &OriginalSyncRoomMessageEvent) -> Tim
     };
 
     TimelineMessage {
-        id: event.event_id.to_string(),
+        event_id: event.event_id.to_string(),
         sender: event.sender.to_string(),
+        sender_name: None, // Resolved by frontend or room member lookup
         body,
         formatted_body,
         timestamp: event.origin_server_ts.0.into(),
         is_edited,
+        is_redacted: false,
         reply_to,
         reactions: Vec::new(),
         msg_type,
@@ -1549,12 +1593,14 @@ fn timeline_message_from_any_event(event: &AnyTimelineEvent) -> Option<TimelineM
                 };
 
                 Some(TimelineMessage {
-                    id: original.event_id.to_string(),
+                    event_id: original.event_id.to_string(),
                     sender: original.sender.to_string(),
+                    sender_name: None,
                     body,
                     formatted_body,
                     timestamp: original.origin_server_ts.0.into(),
                     is_edited,
+                    is_redacted: false,
                     reply_to,
                     reactions: Vec::new(),
                     msg_type,
@@ -1706,3 +1752,5 @@ pub struct BannedUser {
     pub user_id: String,
     pub reason: Option<String>,
 }
+
+

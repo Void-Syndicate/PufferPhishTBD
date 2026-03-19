@@ -44,6 +44,7 @@ function wrapSelection(
 export default function MessageComposer({ roomId }: MessageComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showSizePicker, setShowSizePicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -93,8 +94,11 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
       sendTyping(false);
       clearTimeout(typingTimeout.current);
       textareaRef.current?.focus();
-    } catch (e) {
-      console.error("Failed to send:", e);
+    } catch (e: any) {
+      const errMsg = typeof e === "string" ? e : e?.message || JSON.stringify(e);
+      console.error("Failed to send:", errMsg);
+      setSendError(errMsg);
+      setTimeout(() => setSendError(null), 6000);
     } finally {
       setSending(false);
     }
@@ -123,9 +127,13 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
     }
   }, [editingMessage]);
 
-  // Focus on room change
+  // Cleanup typing indicator on room change/unmount
   useEffect(() => {
     textareaRef.current?.focus();
+    return () => {
+      clearTimeout(typingTimeout.current);
+      invoke("send_typing", { roomId, typing: false }).catch(() => {});
+    };
   }, [roomId]);
 
   // Close pickers on outside click
@@ -245,6 +253,11 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
         )}
       </div>
 
+      {sendError && (
+        <div style={{ color: "#ff4444", fontSize: "12px", padding: "4px 8px", background: "#1a0000", borderRadius: "4px", margin: "4px 8px" }}>
+          ⚠ Send failed: {sendError}
+        </div>
+      )}
       <div className={styles.typingIndicator}>{typingText}</div>
     </div>
   );

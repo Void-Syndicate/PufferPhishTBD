@@ -29,6 +29,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             // Auth
@@ -125,9 +126,12 @@ pub fn run() {
             commands::unban_user,
             commands::get_banned_users,
             commands::set_server_acl,
+            // Media (full URL resolver)
+            commands::resolve_mxc_full_url,
             // Link Preview
             link_preview::fetch_link_preview,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PufferChat");
 }
+

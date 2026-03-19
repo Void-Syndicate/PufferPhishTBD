@@ -9,15 +9,46 @@ interface MediaGalleryProps {
 
 type TabType = "all" | "images" | "videos" | "files";
 
+interface TimelineMessage {
+  id: string;
+  sender: string;
+  body: string;
+  formattedBody: string | null;
+  timestamp: number;
+  isEdited: boolean;
+  replyTo: string | null;
+  reactions: any[];
+  msgType: string;
+  replaces: string | null;
+  avatarUrl: string | null;
+  mediaUrl: string | null;
+  mediaInfo: {
+    mimetype: string | null;
+    size: number | null;
+    width: number | null;
+    height: number | null;
+    durationMs: number | null;
+    thumbnailUrl: string | null;
+    filename: string | null;
+  } | null;
+}
+
+interface PaginationResult {
+  messages: TimelineMessage[];
+  endToken: string | null;
+  hasMore: boolean;
+}
+
 interface MediaItem {
   eventId: string;
-  msgtype: string;
+  msgType: string;
   body: string;
-  url?: string;       // mxc:// URL
-  thumbnailUrl?: string;
-  size?: number;
+  mediaUrl: string | null;
+  thumbnailUrl: string | null;
+  size: number | null;
   sender: string;
   timestamp: number;
+  filename: string | null;
 }
 
 function formatBytes(bytes: number): string {
@@ -39,8 +70,7 @@ export default function MediaGallery({ roomId, onClose }: MediaGalleryProps) {
     async function fetchMedia() {
       setLoading(true);
       try {
-        // Fetch a large batch of messages to find media
-        const result: { messages: any[]; end?: string } = await invoke("get_room_messages", {
+        const result = await invoke<PaginationResult>("get_room_messages", {
           roomId,
           from: null,
           limit: 100,
@@ -49,16 +79,17 @@ export default function MediaGallery({ roomId, onClose }: MediaGalleryProps) {
 
         const mediaTypes = ["m.image", "m.video", "m.audio", "m.file"];
         const items: MediaItem[] = result.messages
-          .filter((m: any) => m.content?.msgtype && mediaTypes.includes(m.content.msgtype))
-          .map((m: any) => ({
-            eventId: m.event_id || m.eventId,
-            msgtype: m.content.msgtype,
-            body: m.content.body || "Untitled",
-            url: m.content.url,
-            thumbnailUrl: m.content.info?.thumbnail_url,
-            size: m.content.info?.size,
+          .filter((m) => mediaTypes.includes(m.msgType))
+          .map((m) => ({
+            eventId: m.id,
+            msgType: m.msgType,
+            body: m.body || "Untitled",
+            mediaUrl: m.mediaUrl,
+            thumbnailUrl: m.mediaInfo?.thumbnailUrl || null,
+            size: m.mediaInfo?.size || null,
             sender: m.sender,
-            timestamp: m.origin_server_ts || m.timestamp || 0,
+            timestamp: m.timestamp,
+            filename: m.mediaInfo?.filename || m.body,
           }));
 
         setMedia(items);
@@ -75,8 +106,8 @@ export default function MediaGallery({ roomId, onClose }: MediaGalleryProps) {
   // Resolve mxc URLs to HTTP
   useEffect(() => {
     const urlsToResolve = media
-      .filter((m) => m.url && !resolvedUrls[m.url])
-      .map((m) => m.url!);
+      .filter((m) => m.mediaUrl && !resolvedUrls[m.mediaUrl])
+      .map((m) => m.mediaUrl!);
 
     const unique = [...new Set(urlsToResolve)];
     if (unique.length === 0) return;
@@ -97,28 +128,28 @@ export default function MediaGallery({ roomId, onClose }: MediaGalleryProps) {
 
   const filtered = useMemo(() => {
     switch (tab) {
-      case "images": return media.filter((m) => m.msgtype === "m.image");
-      case "videos": return media.filter((m) => m.msgtype === "m.video");
-      case "files":  return media.filter((m) => m.msgtype === "m.file" || m.msgtype === "m.audio");
+      case "images": return media.filter((m) => m.msgType === "m.image");
+      case "videos": return media.filter((m) => m.msgType === "m.video");
+      case "files":  return media.filter((m) => m.msgType === "m.file" || m.msgType === "m.audio");
       default:       return media;
     }
   }, [media, tab]);
 
-  const isVisual = (m: MediaItem) => m.msgtype === "m.image" || m.msgtype === "m.video";
+  const isVisual = (m: MediaItem) => m.msgType === "m.image" || m.msgType === "m.video";
 
   const handleThumbClick = async (item: MediaItem) => {
-    if (!item.url) return;
+    if (!item.mediaUrl) return;
     try {
       const fullUrl: string = await invoke("resolve_mxc_url", {
-        mxcUrl: item.url,
+        mxcUrl: item.mediaUrl,
         width: 1200,
         height: 1200,
       });
       setLightboxUrl(fullUrl);
     } catch {
       // fallback to thumbnail
-      if (item.url && resolvedUrls[item.url]) {
-        setLightboxUrl(resolvedUrls[item.url]);
+      if (item.mediaUrl && resolvedUrls[item.mediaUrl]) {
+        setLightboxUrl(resolvedUrls[item.mediaUrl]);
       }
     }
   };
@@ -136,8 +167,8 @@ export default function MediaGallery({ roomId, onClose }: MediaGalleryProps) {
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
         <div className={styles.titleBar}>
-          <span>?? Media Gallery</span>
-          <button className={styles.closeBtn} onClick={onClose}>?</button>
+          <span>&#x1F5BC; Media Gallery</span>
+          <button className={styles.closeBtn} onClick={onClose}>&#x2716;</button>
         </div>
 
         <div className={styles.tabBar}>
@@ -163,7 +194,7 @@ export default function MediaGallery({ roomId, onClose }: MediaGalleryProps) {
                 <img
                   key={item.eventId}
                   className={styles.thumb}
-                  src={item.url ? resolvedUrls[item.url] || "" : ""}
+                  src={item.mediaUrl ? resolvedUrls[item.mediaUrl] || "" : ""}
                   alt={item.body}
                   title={item.body}
                   onClick={() => handleThumbClick(item)}
@@ -176,9 +207,9 @@ export default function MediaGallery({ roomId, onClose }: MediaGalleryProps) {
                   {filtered.filter((m) => !isVisual(m)).map((item) => (
                     <div key={item.eventId} className={styles.fileRow}>
                       <span className={styles.fileIcon}>
-                        {item.msgtype === "m.audio" ? "??" : "??"}
+                        {item.msgType === "m.audio" ? "\u{1F3B5}" : "\u{1F4C4}"}
                       </span>
-                      <span className={styles.fileName}>{item.body}</span>
+                      <span className={styles.fileName}>{item.filename || item.body}</span>
                       {item.size && <span className={styles.fileSize}>{formatBytes(item.size)}</span>}
                     </div>
                   ))}
@@ -190,9 +221,9 @@ export default function MediaGallery({ roomId, onClose }: MediaGalleryProps) {
               {filtered.map((item) => (
                 <div key={item.eventId} className={styles.fileRow}>
                   <span className={styles.fileIcon}>
-                    {item.msgtype === "m.audio" ? "??" : item.msgtype === "m.video" ? "??" : "??"}
+                    {item.msgType === "m.audio" ? "\u{1F3B5}" : item.msgType === "m.video" ? "\u{1F3AC}" : "\u{1F4C4}"}
                   </span>
-                  <span className={styles.fileName}>{item.body}</span>
+                  <span className={styles.fileName}>{item.filename || item.body}</span>
                   {item.size && <span className={styles.fileSize}>{formatBytes(item.size)}</span>}
                 </div>
               ))}

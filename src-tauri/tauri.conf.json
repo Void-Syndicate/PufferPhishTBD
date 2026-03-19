@@ -19,7 +19,7 @@
                                 }
                             ],
                 "security":  {
-                                 "csp":  "default-src \u0027self\u0027; script-src \u0027self\u0027; style-src \u0027self\u0027; img-src \u0027self\u0027 asset: https:; connect-src \u0027self\u0027 ipc: http://ipc.localhost; font-src \u0027self\u0027; object-src \u0027none\u0027; base-uri \u0027self\u0027; form-action \u0027self\u0027; frame-ancestors \u0027none\u0027"
+                                 "csp":  "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https: blob: data:; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420 wss://localhost:1420 https://* http://localhost:*; font-src 'self' data:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
                              }
             },
     "bundle":  {
@@ -34,6 +34,7 @@
                             ]
                },
     "plugins":  {
-                    "notification":  null
+                    "notification":  null,
+                    "dialog":  null
                 }
 }

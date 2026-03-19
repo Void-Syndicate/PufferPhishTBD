@@ -113,7 +113,10 @@ export default function MainShell() {
           <button className={styles.toolBtn} onClick={lockApp}>{"\uD83D\uDD10"} Lock</button>
         )}
         <div className={styles.toolSpacer} />
-        <button className={styles.toolBtn} onClick={logout}>{"\uD83D\uDEAA"} Sign Off</button>
+        <button className={styles.toolBtn} onClick={async () => {
+          try { await invoke("matrix_logout"); } catch (e) { console.error("Logout failed:", e); }
+          logout();
+        }}>{"\uD83D\uDEAA"} Sign Off</button>
       </div>
 
       <div className={styles.mainContent}>

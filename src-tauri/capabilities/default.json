@@ -1,0 +1,18 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for PufferChat",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:event:allow-listen",
+    "core:event:allow-emit",
+    "core:window:default",
+    "core:window:allow-close",
+    "core:window:allow-set-title",
+    "core:webview:default",
+    "shell:default",
+    "notification:default",
+    "dialog:default"
+  ]
+}

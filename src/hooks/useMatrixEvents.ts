@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -45,6 +45,21 @@ interface VerificationRequestEvent {
   timestamp: number;
 }
 
+interface ReactionSyncEvent {
+  roomId: string;
+  eventId: string;
+  reactionEventId: string;
+  sender: string;
+  emoji: string;
+}
+
+interface RedactionEvent {
+  roomId: string;
+  redactedEventId: string;
+  sender: string;
+  reason: string | null;
+}
+
 interface RoomEncryptionChangedEvent {
   roomId: string;
   isEncrypted: boolean;
@@ -52,6 +67,7 @@ interface RoomEncryptionChangedEvent {
 
 export function useMatrixEvents() {
   const addMessage = useMessagesStore((s) => s.addMessage);
+  const addReaction = useMessagesStore((s) => s.addReaction);
   const updateMessage = useMessagesStore((s) => s.updateMessage);
   const removeMessage = useMessagesStore((s) => s.removeMessage);
   const setTyping = useTypingStore((s) => s.setTyping);
@@ -64,6 +80,17 @@ export function useMatrixEvents() {
   const soundEnabled = useSettingsStore((s) => s.soundEnabled);
   const setReceipt = useReadReceiptStore((s) => s.setReceipt);
   const addPendingVerification = useEncryptionStore((s) => s.addPendingVerification);
+
+  // Use refs for values that change frequently to avoid tearing down/re-creating all listeners
+  const selectedRoomIdRef = useRef(selectedRoomId);
+  const userIdRef = useRef(userId);
+  const soundEnabledRef = useRef(soundEnabled);
+  const getRoomNotificationRef = useRef(getRoomNotification);
+
+  useEffect(() => { selectedRoomIdRef.current = selectedRoomId; }, [selectedRoomId]);
+  useEffect(() => { userIdRef.current = userId; }, [userId]);
+  useEffect(() => { soundEnabledRef.current = soundEnabled; }, [soundEnabled]);
+  useEffect(() => { getRoomNotificationRef.current = getRoomNotification; }, [getRoomNotification]);
 
   useEffect(() => {
     (async () => {
@@ -94,11 +121,11 @@ export function useMatrixEvents() {
       } else {
         addMessage(roomId, msg);
 
-        const isFromSelf = msg.sender === userId;
-        const isInSelectedRoom = roomId === selectedRoomId;
-        const notifLevel = getRoomNotification(roomId);
+        const isFromSelf = msg.sender === userIdRef.current;
+        const isInSelectedRoom = roomId === selectedRoomIdRef.current;
+        const notifLevel = getRoomNotificationRef.current(roomId);
 
-        if (soundEnabled) {
+        if (soundEnabledRef.current) {
           if (isFromSelf) {
             soundEngine.play("message-sent");
           } else if (notifLevel !== "mute") {
@@ -127,6 +154,16 @@ export function useMatrixEvents() {
     listen<ReadReceiptEvent>("matrix://read-receipt", (event) => {
       const { roomId, userId: receiptUserId, eventId } = event.payload;
       setReceipt(roomId, receiptUserId, eventId);
+    }).then((u) => unlisteners.push(u));
+
+    listen<ReactionSyncEvent>("matrix://reaction", (event) => {
+      const { roomId, eventId, sender, emoji } = event.payload;
+      addReaction(roomId, eventId, emoji, sender);
+    }).then((u) => unlisteners.push(u));
+
+    listen<RedactionEvent>("matrix://redaction", (event) => {
+      const { roomId, redactedEventId } = event.payload;
+      removeMessage(roomId, redactedEventId);
     }).then((u) => unlisteners.push(u));
 
     listen<PresenceEvent>("matrix://presence", (event) => {
@@ -158,7 +195,7 @@ export function useMatrixEvents() {
         const granted = await isPermissionGranted();
         if (granted) {
           sendNotification({
-            title: "PufferChat — Verification Request",
+            title: "PufferChat â€” Verification Request",
             body: `${fromUserId} wants to verify your device`,
           });
         }
@@ -179,5 +216,5 @@ export function useMatrixEvents() {
     return () => {
       unlisteners.forEach((u) => u());
     };
-  }, [addMessage, updateMessage, removeMessage, setTyping, updateRoom, setRooms, userId, selectedRoomId, getRoomNotification, soundEnabled, setReceipt, addPendingVerification]);
+  }, [addMessage, addReaction, updateMessage, removeMessage, setTyping, updateRoom, setRooms, setReceipt, addPendingVerification]);
 }

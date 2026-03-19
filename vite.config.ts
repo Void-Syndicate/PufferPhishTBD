@@ -13,6 +13,16 @@ export default defineConfig(async () => ({
   },
   // Prevent vite from obscuring Rust errors
   clearScreen: false,
+  // Exclude Rust build artifacts from dep scanning
+  optimizeDeps: {
+    exclude: ["src-tauri"],
+    entries: ["index.html"],
+  },
+  build: {
+    rollupOptions: {
+      external: [/src-tauri/],
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,
