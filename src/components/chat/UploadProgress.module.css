@@ -1,0 +1,156 @@
+﻿.uploadContainer {
+  background: var(--win-bg, #C0C0C0);
+  border: 2px solid;
+  border-color: var(--win-border-light, #FFFFFF) var(--win-border-dark, #808080) var(--win-border-dark, #808080) var(--win-border-light, #FFFFFF);
+  padding: 0;
+  margin: 4px;
+  font-family: var(--font-system, "MS Sans Serif", "Microsoft Sans Serif", Tahoma, sans-serif);
+  font-size: 11px;
+}
+
+.titleBar {
+  background: linear-gradient(90deg, #000080, #1084D0);
+  color: #FFFFFF;
+  font-weight: bold;
+  font-size: 11px;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.titleBarText {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.closeBtn {
+  background: var(--win-bg, #C0C0C0);
+  border: 1px solid;
+  border-color: var(--win-border-light, #FFFFFF) var(--win-border-dark, #808080) var(--win-border-dark, #808080) var(--win-border-light, #FFFFFF);
+  font-size: 9px;
+  width: 16px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  color: #000000;
+}
+
+.closeBtn:active {
+  border-color: var(--win-border-dark, #808080) var(--win-border-light, #FFFFFF) var(--win-border-light, #FFFFFF) var(--win-border-dark, #808080);
+}
+
+.uploadList {
+  padding: 6px 8px;
+}
+
+.uploadItem {
+  margin-bottom: 6px;
+}
+
+.uploadItem:last-child {
+  margin-bottom: 0;
+}
+
+.fileInfo {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.fileName {
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px;
+}
+
+.fileSize {
+  color: #444;
+  flex-shrink: 0;
+}
+
+.progressBarOuter {
+  background: #FFFFFF;
+  border: 1px solid;
+  border-color: var(--win-border-dark, #808080) var(--win-border-light, #FFFFFF) var(--win-border-light, #FFFFFF) var(--win-border-dark, #808080);
+  height: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.progressBarInner {
+  background: #000080;
+  height: 100%;
+  transition: width 0.3s ease;
+  background-image: repeating-linear-gradient(
+    90deg,
+    #000080 0px,
+    #000080 8px,
+    #0000AA 8px,
+    #0000AA 16px
+  );
+}
+
+.progressText {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #000;
+  mix-blend-mode: difference;
+  font-weight: bold;
+}
+
+.progressText span {
+  color: #FFFFFF;
+}
+
+.statusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+.estimatedTime {
+  color: #555;
+}
+
+.cancelBtn {
+  font-family: var(--font-system, "MS Sans Serif", Tahoma, sans-serif);
+  font-size: 10px;
+  background: var(--win-bg, #C0C0C0);
+  border: 1px solid;
+  border-color: var(--win-border-light, #FFFFFF) var(--win-border-dark, #808080) var(--win-border-dark, #808080) var(--win-border-light, #FFFFFF);
+  padding: 1px 8px;
+  cursor: pointer;
+}
+
+.cancelBtn:active {
+  border-color: var(--win-border-dark, #808080) var(--win-border-light, #FFFFFF) var(--win-border-light, #FFFFFF) var(--win-border-dark, #808080);
+}
+
+.statusComplete {
+  color: #008800;
+  font-weight: bold;
+}
+
+.statusFailed {
+  color: #CC0000;
+  font-weight: bold;
+}
+
+.empty {
+  display: none;
+}

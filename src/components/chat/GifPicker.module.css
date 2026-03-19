@@ -1,0 +1,125 @@
+.picker {
+  position: absolute;
+  bottom: 60px;
+  left: 10px;
+  width: 360px;
+  height: 420px;
+  background: #c0c0c0;
+  border: 2px outset #ffffff;
+  box-shadow: 2px 2px 0 #808080, inset 1px 1px 0 #ffffff;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  font-family: 'MS Sans Serif', 'Tahoma', sans-serif;
+}
+
+.titleBar {
+  background: linear-gradient(90deg, #000080, #1084d0);
+  color: white;
+  padding: 3px 6px;
+  font-size: 12px;
+  font-weight: bold;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+
+.closeBtn {
+  background: #c0c0c0;
+  border: 2px outset #ffffff;
+  color: black;
+  width: 18px;
+  height: 18px;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+
+.closeBtn:active {
+  border-style: inset;
+}
+
+.searchBar {
+  padding: 6px;
+  border-bottom: 1px solid #808080;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 3px 6px;
+  border: 2px inset #ffffff;
+  background: white;
+  font-family: inherit;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.grid {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 6px;
+  background: white;
+  border: 2px inset #808080;
+  margin: 0 6px;
+}
+
+.gifItem {
+  cursor: pointer;
+  overflow: hidden;
+  border: 1px solid #c0c0c0;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+}
+
+.gifItem:hover {
+  border-color: #000080;
+  box-shadow: 0 0 0 1px #000080;
+}
+
+.gifItem img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.loading,
+.empty,
+.noKey {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 20px;
+  color: #808080;
+  font-size: 12px;
+}
+
+.noKey {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.noKey p {
+  margin: 4px 0;
+}
+
+.attribution {
+  padding: 3px 6px;
+  font-size: 10px;
+  color: #808080;
+  text-align: right;
+  border-top: 1px solid #808080;
+}

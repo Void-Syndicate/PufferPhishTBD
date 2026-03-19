@@ -1,0 +1,43 @@
+﻿.dropZoneWrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 128, 0.85);
+  border: 3px dashed #FFD700;
+  pointer-events: none;
+}
+
+.overlayContent {
+  text-align: center;
+  color: #FFFFFF;
+  font-family: var(--font-system, "MS Sans Serif", "Microsoft Sans Serif", Tahoma, sans-serif);
+}
+
+.overlayIcon {
+  font-size: 48px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.overlayText {
+  font-size: 16px;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 #000080;
+}
+
+.overlaySubtext {
+  font-size: 11px;
+  margin-top: 4px;
+  color: #CCCCFF;
+}

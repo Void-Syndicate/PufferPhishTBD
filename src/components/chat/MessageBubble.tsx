@@ -1,4 +1,4 @@
-import DOMPurify from "dompurify";
+﻿import DOMPurify from "dompurify";
 import { useMemo, useEffect } from "react";
 import { useState, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -15,6 +15,147 @@ interface MessageBubbleProps {
   message: TimelineMessage;
   roomId: string;
   allMessages: TimelineMessage[];
+}
+
+function MediaImage({ message }: { message: TimelineMessage }) {
+  const [thumbUrl, setThumbUrl] = useState<string | null>(null);
+  const [fullUrl, setFullUrl] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState(false);
+
+  useEffect(() => {
+    if (!message.mediaUrl) return;
+    invoke<string>("resolve_mxc_url", { mxcUrl: message.mediaUrl, width: 320, height: 240 })
+      .then(setThumbUrl)
+      .catch(() => {});
+  }, [message.mediaUrl]);
+
+  const openLightbox = async () => {
+    if (!message.mediaUrl) return;
+    if (!fullUrl) {
+      try {
+        const url = await invoke<string>("resolve_mxc_full_url", { mxcUrl: message.mediaUrl });
+        setFullUrl(url);
+      } catch { /* ignore */ }
+    }
+    setLightbox(true);
+  };
+
+  return (
+    <>
+      <div className={styles.mediaImage} onClick={openLightbox}>
+        {thumbUrl ? (
+          <img src={thumbUrl} alt={message.body} className={styles.mediaThumbnail} />
+        ) : (
+          <div className={styles.mediaPlaceholder}>&#x1F5BC; {message.body}</div>
+        )}
+      </div>
+      {lightbox && (
+        <div className={styles.lightboxOverlay} onClick={() => setLightbox(false)}>
+          <div className={styles.lightboxWindow} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.lightboxTitleBar}>
+              <span>{message.mediaInfo?.filename || message.body}</span>
+              <button className={styles.lightboxClose} onClick={() => setLightbox(false)}>&#x2716;</button>
+            </div>
+            <div className={styles.lightboxContent}>
+              <img src={fullUrl || thumbUrl || ""} alt={message.body} className={styles.lightboxImage} />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function MediaVideo({ message }: { message: TimelineMessage }) {
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!message.mediaUrl) return;
+    invoke<string>("resolve_mxc_full_url", { mxcUrl: message.mediaUrl })
+      .then(setVideoUrl)
+      .catch(() => {});
+  }, [message.mediaUrl]);
+
+  if (!videoUrl) return <div className={styles.mediaPlaceholder}>&#x1F3AC; {message.body}</div>;
+
+  return (
+    <div className={styles.mediaVideo}>
+      <video controls className={styles.videoPlayer} preload="metadata">
+        <source src={videoUrl} type={message.mediaInfo?.mimetype || "video/mp4"} />
+        Your browser does not support video.
+      </video>
+      <div className={styles.mediaLabel}>{message.body}</div>
+    </div>
+  );
+}
+
+function MediaAudio({ message }: { message: TimelineMessage }) {
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!message.mediaUrl) return;
+    invoke<string>("resolve_mxc_full_url", { mxcUrl: message.mediaUrl })
+      .then(setAudioUrl)
+      .catch(() => {});
+  }, [message.mediaUrl]);
+
+  if (!audioUrl) return <div className={styles.mediaPlaceholder}>&#x1F3B5; {message.body}</div>;
+
+  return (
+    <div className={styles.mediaAudio}>
+      <div className={styles.audioHeader}>&#x1F3B5; {message.body}</div>
+      <audio controls className={styles.audioPlayer} preload="metadata">
+        <source src={audioUrl} type={message.mediaInfo?.mimetype || "audio/mpeg"} />
+        Your browser does not support audio.
+      </audio>
+      {message.mediaInfo?.durationMs && (
+        <div className={styles.mediaMeta}>
+          Duration: {Math.round(message.mediaInfo.durationMs / 1000)}s
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MediaFile({ message }: { message: TimelineMessage }) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (!message.mediaUrl) return;
+    setDownloading(true);
+    try {
+      const filename = message.mediaInfo?.filename || message.body || "file";
+      const savePath = `downloads/${filename}`;
+      await invoke("download_media", { mxcUrl: message.mediaUrl, savePath });
+    } catch (e) {
+      console.error("Download failed:", e);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const sizeStr = message.mediaInfo?.size
+    ? message.mediaInfo.size > 1048576
+      ? `${(message.mediaInfo.size / 1048576).toFixed(1)} MB`
+      : `${(message.mediaInfo.size / 1024).toFixed(1)} KB`
+    : "";
+
+  return (
+    <div className={styles.mediaFile}>
+      <div className={styles.fileIcon}>&#x1F4C4;</div>
+      <div className={styles.fileDetails}>
+        <div className={styles.fileName}>{message.mediaInfo?.filename || message.body}</div>
+        {sizeStr && <div className={styles.fileMeta}>{sizeStr}</div>}
+      </div>
+      <button
+        className={styles.downloadButton}
+        onClick={handleDownload}
+        disabled={downloading}
+      >
+        {downloading ? "Receiving..." : "&#x2B07; Get File"}
+      </button>
+    </div>
+  );
 }
 
 export default function MessageBubble({ message, roomId, allMessages }: MessageBubbleProps) {
@@ -92,6 +233,24 @@ export default function MessageBubble({ message, roomId, allMessages }: MessageB
 
   const bubbleClass = [styles.bubble, message.isRedacted ? styles.redacted : ""].filter(Boolean).join(" ");
 
+  // Render media content based on message type
+  const renderMediaContent = () => {
+    switch (message.msgType) {
+      case "m.image":
+        return <MediaImage message={message} />;
+      case "m.video":
+        return <MediaVideo message={message} />;
+      case "m.audio":
+        return <MediaAudio message={message} />;
+      case "m.file":
+        return <MediaFile message={message} />;
+      default:
+        return null;
+    }
+  };
+
+  const isMediaMessage = ["m.image", "m.video", "m.audio", "m.file"].includes(message.msgType);
+
   return (
     <div
       className={bubbleClass}
@@ -122,14 +281,18 @@ export default function MessageBubble({ message, roomId, allMessages }: MessageB
         {message.isEdited && <span className={styles.editBadge}>(edited)</span>}
       </div>
 
-      <div
-        className={styles.body}
-        dangerouslySetInnerHTML={
-          sanitizedHtml ? { __html: sanitizedHtml } : undefined
-        }
-      >
-        {sanitizedHtml ? undefined : message.body}
-      </div>
+      {isMediaMessage ? (
+        renderMediaContent()
+      ) : (
+        <div
+          className={styles.body}
+          dangerouslySetInnerHTML={
+            sanitizedHtml ? { __html: sanitizedHtml } : undefined
+          }
+        >
+          {sanitizedHtml ? undefined : message.body}
+        </div>
+      )}
 
       {message.reactions.length > 0 && (
         <div className={styles.reactions}>

@@ -1,8 +1,18 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 
 export interface Reaction {
   emoji: string;
   senders: string[];
+}
+
+export interface MediaInfo {
+  mimetype: string | null;
+  size: number | null;
+  width: number | null;
+  height: number | null;
+  durationMs: number | null;
+  thumbnailUrl: string | null;
+  filename: string | null;
 }
 
 export interface TimelineMessage {
@@ -18,6 +28,9 @@ export interface TimelineMessage {
   isRedacted: boolean;
   replaces: string | null;
   avatarUrl: string | null;
+  msgType: string;
+  mediaUrl: string | null;
+  mediaInfo: MediaInfo | null;
 }
 
 interface RoomMessages {

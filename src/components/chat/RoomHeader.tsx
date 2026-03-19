@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRoomsStore } from "../../stores/rooms";
 import { RoomEncryptionStatus } from "../../stores/encryption";
 import { useEncryption } from "../../hooks/useEncryption";
+import MediaGallery from "./MediaGallery";
 import styles from "./RoomHeader.module.css";
 
 interface RoomHeaderProps {
@@ -46,6 +47,7 @@ export default function RoomHeader({ roomId, onToggleMembers, showMembers }: Roo
   const { getRoomEncryptionStatus } = useEncryption();
   const [encDetails, setEncDetails] = useState<RoomEncryptionStatus | null>(null);
   const [showEncPopup, setShowEncPopup] = useState(false);
+  const [showMediaGallery, setShowMediaGallery] = useState(false);
 
   const handleEncryptionClick = useCallback(async () => {
     if (showEncPopup) {
@@ -84,6 +86,13 @@ export default function RoomHeader({ roomId, onToggleMembers, showMembers }: Roo
           </span>
         )}
         <button
+          className={styles.membersBtn}
+          onClick={() => setShowMediaGallery(true)}
+          title="Media gallery"
+        >
+          ?? Media
+        </button>
+        <button
           className={membersBtnClass}
           onClick={onToggleMembers}
           title="Toggle member list"
@@ -93,6 +102,9 @@ export default function RoomHeader({ roomId, onToggleMembers, showMembers }: Roo
       </div>
       {showEncPopup && encDetails && (
         <EncryptionDetails status={encDetails} onClose={() => setShowEncPopup(false)} />
+      )}
+      {showMediaGallery && (
+        <MediaGallery roomId={roomId} onClose={() => setShowMediaGallery(false)} />
       )}
     </div>
   );

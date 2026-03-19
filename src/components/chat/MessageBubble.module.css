@@ -1,4 +1,4 @@
-.bubble {
+﻿.bubble {
   padding: 2px 8px;
   font-family: var(--font-chat);
   font-size: var(--font-size-chat);
@@ -153,4 +153,213 @@
 .messageContent {
   flex: 1;
   min-width: 0;
+}
+
+/* ═══════════════════════════════════════
+   Media Styles — AOL Retro Theme
+   ═══════════════════════════════════════ */
+
+.mediaImage {
+  margin: 4px 0;
+  cursor: pointer;
+  display: inline-block;
+}
+
+.mediaThumbnail {
+  max-width: 320px;
+  max-height: 240px;
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  background: var(--win-bg);
+  padding: 2px;
+  image-rendering: auto;
+}
+
+.mediaThumbnail:hover {
+  border-color: var(--aol-blue) var(--aol-blue) var(--aol-blue) var(--aol-blue);
+}
+
+.mediaPlaceholder {
+  padding: 8px 12px;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: var(--win-border-shadow);
+  margin: 4px 0;
+}
+
+.mediaVideo {
+  margin: 4px 0;
+}
+
+.videoPlayer {
+  max-width: 400px;
+  max-height: 300px;
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  background: #000;
+}
+
+.mediaLabel {
+  font-size: 10px;
+  color: var(--win-border-shadow);
+  font-family: var(--font-system);
+  margin-top: 1px;
+}
+
+.mediaAudio {
+  margin: 4px 0;
+  padding: 6px 8px;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  max-width: 320px;
+}
+
+.audioHeader {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.audioPlayer {
+  width: 100%;
+  height: 28px;
+}
+
+.mediaMeta {
+  font-size: 9px;
+  color: var(--win-border-shadow);
+  font-family: var(--font-system);
+  margin-top: 2px;
+}
+
+.mediaFile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  max-width: 320px;
+}
+
+.fileIcon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.fileDetails {
+  flex: 1;
+  min-width: 0;
+}
+
+.fileName {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileMeta {
+  font-size: 9px;
+  color: var(--win-border-shadow);
+  font-family: var(--font-system);
+}
+
+.downloadButton {
+  padding: 3px 10px;
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.downloadButton:hover {
+  background: #D4D0C8;
+}
+
+.downloadButton:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.downloadButton:disabled {
+  color: var(--win-border-shadow);
+  cursor: default;
+}
+
+/* Lightbox */
+.lightboxOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightboxWindow {
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5);
+}
+
+.lightboxTitleBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, var(--aol-blue), #003399);
+  color: white;
+  padding: 2px 4px;
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  font-weight: bold;
+}
+
+.lightboxClose {
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1.4;
+}
+
+.lightboxClose:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.lightboxContent {
+  padding: 4px;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightboxImage {
+  max-width: 85vw;
+  max-height: 80vh;
+  object-fit: contain;
 }

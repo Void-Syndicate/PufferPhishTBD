@@ -1,9 +1,11 @@
-﻿import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMessagesStore } from "../../stores/messages";
 import { useTypingStore } from "../../stores/typing";
 import { useAuthStore } from "../../stores/auth";
+import { useClipboardPaste, PastePreview } from "./ClipboardPasteHandler";
 import styles from "./MessageComposer.module.css";
+import VoiceRecorder from "./VoiceRecorder";
 
 interface MessageComposerProps {
   roomId: string;
@@ -44,6 +46,7 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
   const [sending, setSending] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showSizePicker, setShowSizePicker] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout>>();
 
@@ -55,6 +58,11 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
   const userId = useAuthStore((s) => s.userId);
 
   const filteredTyping = typingUsers.filter((u) => u !== userId);
+
+  const { pastedImage, sending: pasteSending, handlePaste, sendPastedImage, cancelPaste } = useClipboardPaste({
+    roomId,
+    onPasteHandled: () => textareaRef.current?.focus(),
+  });
 
   const sendTyping = useCallback((typing: boolean) => {
     invoke("send_typing", { roomId, typing }).catch(() => {});
@@ -196,25 +204,50 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
         </div>
       )}
 
+      {pastedImage && (
+        <PastePreview
+          dataUrl={pastedImage.dataUrl}
+          name={pastedImage.name}
+          sending={pasteSending}
+          onSend={sendPastedImage}
+          onCancel={cancelPaste}
+        />
+      )}
+
       <div className={styles.inputRow}>
-        <textarea
+        {isRecording ? (
+          <VoiceRecorder roomId={roomId} onClose={() => setIsRecording(false)} />
+        ) : (
+          <>
+            <textarea
           ref={textareaRef}
           className={styles.textInput}
-          value={text}
-          onChange={(e) => handleInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type your message..."
-          rows={2}
-          disabled={sending}
-        />
-        <button
-          className={styles.sendBtn}
-          onClick={handleSend}
-          disabled={!text.trim() || sending}
-        >{editingMessage ? "Save Edit" : "Send"}</button>
+          onPaste={handlePaste}
+              value={text}
+              onChange={(e) => handleInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your message..."
+              rows={2}
+              disabled={sending}
+            />
+            <button
+              className={styles.sendBtn}
+              onClick={handleSend}
+              disabled={!text.trim() || sending}
+            >{editingMessage ? "Save Edit" : "Send"}</button>
+            <button
+              className={styles.micBtn}
+              onClick={() => setIsRecording(true)}
+              title="Record voice message"
+              disabled={sending || !!editingMessage}
+            >??</button>
+          </>
+        )}
       </div>
 
       <div className={styles.typingIndicator}>{typingText}</div>
     </div>
   );
 }
+
+

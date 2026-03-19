@@ -1,5 +1,6 @@
 ﻿mod commands;
 mod error;
+mod link_preview;
 mod matrix;
 mod store;
 
@@ -92,6 +93,17 @@ pub fn run() {
             commands::is_auto_lock_enabled,
             commands::get_lock_timeout,
             commands::disable_auto_lock,
+            // Media & Files (Phase 4)
+            commands::send_image,
+            commands::send_video,
+            commands::send_audio,
+            commands::send_file,
+            commands::download_media,
+            commands::get_cache_size,
+            commands::clear_media_cache,
+            commands::set_cache_limit,
+            // Link Preview
+            link_preview::fetch_link_preview,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PufferChat");

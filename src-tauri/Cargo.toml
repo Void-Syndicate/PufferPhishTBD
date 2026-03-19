@@ -1,4 +1,4 @@
-[package]
+﻿[package]
 name = "pufferchat"
 version = "0.1.0"
 description = "Secure Matrix client with retro AOL aesthetic"
@@ -40,6 +40,9 @@ hex = "0.4"
 argon2 = "0.5"
 password-hash = "0.5"
 url = "2"
+mime_guess = "2"
+mime = "0.3"
+reqwest = { version = "0.12", features = ["json"] }
 
 # Force bundled SQLite (avoids needing system sqlite3.lib)
 libsqlite3-sys = { version = "0.30", features = ["bundled"] }

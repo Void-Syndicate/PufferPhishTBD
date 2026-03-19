@@ -1,7 +1,8 @@
-use matrix_sdk::{
+﻿use matrix_sdk::{
     config::SyncSettings,
     room::Room,
     ruma::{
+        events::room::MediaSource,
         api::client::receipt::create_receipt::v3::ReceiptType,
         events::{
             reaction::ReactionEventContent,
@@ -61,6 +62,18 @@ pub struct Reaction {
     pub emoji: String,
     pub senders: Vec<String>,
 }
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaInfo {
+    pub mimetype: Option<String>,
+    pub size: Option<u64>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub duration_ms: Option<u64>,
+    pub thumbnail_url: Option<String>,
+    pub filename: Option<String>,
+}
+
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -76,6 +89,8 @@ pub struct TimelineMessage {
     pub msg_type: String,
     pub replaces: Option<String>,
     pub avatar_url: Option<String>,
+    pub media_url: Option<String>,
+    pub media_info: Option<MediaInfo>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -1213,7 +1228,7 @@ impl MatrixClient {
 
 /// Convert a sync room message event to our TimelineMessage
 fn timeline_message_from_sync_event(event: &OriginalSyncRoomMessageEvent) -> TimelineMessage {
-    let (body, formatted_body, msg_type) = extract_message_content(&event.content.msgtype);
+    let (body, formatted_body, msg_type, media_url, media_info) = extract_message_content(&event.content.msgtype);
 
     let reply_to = match &event.content.relates_to {
         Some(Relation::Reply { in_reply_to }) => Some(in_reply_to.event_id.to_string()),
@@ -1239,6 +1254,8 @@ fn timeline_message_from_sync_event(event: &OriginalSyncRoomMessageEvent) -> Tim
         msg_type,
         replaces,
         avatar_url: None,
+        media_url,
+        media_info,
     }
 }
 
@@ -1247,7 +1264,7 @@ fn timeline_message_from_any_event(event: &AnyTimelineEvent) -> Option<TimelineM
     match event {
         AnyTimelineEvent::MessageLike(msg_event) => match msg_event {
             AnyMessageLikeEvent::RoomMessage(MessageLikeEvent::Original(original)) => {
-                let (body, formatted_body, msg_type) =
+                let (body, formatted_body, msg_type, media_url, media_info) =
                     extract_message_content(&original.content.msgtype);
 
                 let reply_to = match &original.content.relates_to {
@@ -1277,6 +1294,8 @@ fn timeline_message_from_any_event(event: &AnyTimelineEvent) -> Option<TimelineM
                     msg_type,
                     replaces,
                     avatar_url: None,
+                    media_url,
+                    media_info,
                 })
             }
             _ => None,
@@ -1284,30 +1303,89 @@ fn timeline_message_from_any_event(event: &AnyTimelineEvent) -> Option<TimelineM
         _ => None,
     }
 }
-
-/// Extract body, formatted_body, and msg_type from MessageType
-fn extract_message_content(msgtype: &MessageType) -> (String, Option<String>, String) {
+/// Extract body, formatted_body, msg_type, media_url, and media_info from MessageType
+fn extract_message_content(msgtype: &MessageType) -> (String, Option<String>, String, Option<String>, Option<MediaInfo>) {
     match msgtype {
         MessageType::Text(text) => {
             let formatted = text.formatted.as_ref().map(|f| f.body.clone());
-            (text.body.clone(), formatted, "m.text".into())
+            (text.body.clone(), formatted, "m.text".into(), None, None)
         }
         MessageType::Notice(notice) => {
             let formatted = notice.formatted.as_ref().map(|f| f.body.clone());
-            (notice.body.clone(), formatted, "m.notice".into())
+            (notice.body.clone(), formatted, "m.notice".into(), None, None)
         }
         MessageType::Emote(emote) => {
             let formatted = emote.formatted.as_ref().map(|f| f.body.clone());
-            (emote.body.clone(), formatted, "m.emote".into())
+            (emote.body.clone(), formatted, "m.emote".into(), None, None)
         }
-        MessageType::Image(img) => (img.body.clone(), None, "m.image".into()),
-        MessageType::File(file) => (file.body.clone(), None, "m.file".into()),
-        MessageType::Audio(audio) => (audio.body.clone(), None, "m.audio".into()),
-        MessageType::Video(video) => (video.body.clone(), None, "m.video".into()),
-        _ => ("Unsupported message type".into(), None, "unknown".into()),
+        MessageType::Image(img) => {
+            let url = extract_media_source_url(&img.source);
+            let thumb_url = img.info.as_ref().and_then(|i| i.thumbnail_source.as_ref()).and_then(extract_media_source_url_opt);
+            let info = img.info.as_ref().map(|i| MediaInfo {
+                mimetype: i.mimetype.as_ref().map(|m| m.to_string()),
+                size: i.size.map(|s| s.into()),
+                width: i.width.map(|w| u64::from(w) as u32),
+                height: i.height.map(|h| u64::from(h) as u32),
+                duration_ms: None,
+                thumbnail_url: thumb_url,
+                filename: Some(img.body.clone()),
+            });
+            (img.body.clone(), None, "m.image".into(), url, info)
+        }
+        MessageType::Video(video) => {
+            let url = extract_media_source_url(&video.source);
+            let thumb_url = video.info.as_ref().and_then(|i| i.thumbnail_source.as_ref()).and_then(extract_media_source_url_opt);
+            let info = video.info.as_ref().map(|i| MediaInfo {
+                mimetype: i.mimetype.as_ref().map(|m| m.to_string()),
+                size: i.size.map(|s| s.into()),
+                width: i.width.map(|w| u64::from(w) as u32),
+                height: i.height.map(|h| u64::from(h) as u32),
+                duration_ms: i.duration.map(|d| d.as_millis() as u64),
+                thumbnail_url: thumb_url,
+                filename: Some(video.body.clone()),
+            });
+            (video.body.clone(), None, "m.video".into(), url, info)
+        }
+        MessageType::Audio(audio) => {
+            let url = extract_media_source_url(&audio.source);
+            let info = audio.info.as_ref().map(|i| MediaInfo {
+                mimetype: i.mimetype.as_ref().map(|m| m.to_string()),
+                size: i.size.map(|s| s.into()),
+                width: None,
+                height: None,
+                duration_ms: i.duration.map(|d| d.as_millis() as u64),
+                thumbnail_url: None,
+                filename: Some(audio.body.clone()),
+            });
+            (audio.body.clone(), None, "m.audio".into(), url, info)
+        }
+        MessageType::File(file) => {
+            let url = extract_media_source_url(&file.source);
+            let info = file.info.as_ref().map(|i| MediaInfo {
+                mimetype: i.mimetype.as_ref().map(|m| m.to_string()),
+                size: i.size.map(|s| s.into()),
+                width: None,
+                height: None,
+                duration_ms: None,
+                thumbnail_url: None,
+                filename: Some(file.body.clone()),
+            });
+            (file.body.clone(), None, "m.file".into(), url, info)
+        }
+        _ => ("Unsupported message type".into(), None, "unknown".into(), None, None),
     }
 }
 
+fn extract_media_source_url(source: &MediaSource) -> Option<String> {
+    match source {
+        MediaSource::Plain(uri) => Some(uri.to_string()),
+        MediaSource::Encrypted(encrypted) => Some(encrypted.url.to_string()),
+    }
+}
+
+fn extract_media_source_url_opt(source: &MediaSource) -> Option<String> {
+    extract_media_source_url(source)
+}
 /// Get the data directory for PufferChat storage
 fn get_data_dir() -> PathBuf {
     let mut dir = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));

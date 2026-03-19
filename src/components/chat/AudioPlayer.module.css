@@ -1,0 +1,99 @@
+﻿.audioPlayer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #1a1a2e;
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.playPauseBtn {
+  font-size: 14px;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  padding: 2px 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  min-width: 26px;
+  text-align: center;
+}
+
+.playPauseBtn:hover {
+  background: #D0D0D0;
+}
+
+.playPauseBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.progressContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.waveformContainer {
+  height: 20px;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  cursor: pointer;
+  position: relative;
+}
+
+.waveBar {
+  flex: 1;
+  background: #00ff41;
+  min-height: 2px;
+  opacity: 0.4;
+  transition: opacity 0.1s;
+}
+
+.waveBarPlayed {
+  opacity: 1.0;
+}
+
+.progressBar {
+  width: 100%;
+  height: 6px;
+  background: #2a2a3e;
+  border: 1px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  cursor: pointer;
+  position: relative;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--aol-blue);
+  transition: width 0.1s linear;
+}
+
+.timeDisplay {
+  font-family: var(--font-system);
+  font-size: 9px;
+  color: #00ff41;
+  flex-shrink: 0;
+  min-width: 60px;
+  text-align: center;
+}
+
+.speedBtn {
+  font-family: var(--font-system);
+  font-size: 9px;
+  background: var(--win-bg);
+  border: 1px solid var(--win-border-shadow);
+  padding: 1px 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: var(--aol-black);
+}
+
+.speedBtn:hover {
+  background: #D0D0D0;
+}

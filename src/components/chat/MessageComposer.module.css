@@ -162,3 +162,28 @@
   height: 16px;
   font-style: italic;
 }
+
+.micBtn {
+  font-size: 14px;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  padding: 2px 8px;
+  cursor: pointer;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+}
+
+.micBtn:hover {
+  background: #D0D0D0;
+}
+
+.micBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.micBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -14,12 +14,13 @@ use crate::matrix::client::{
     RoomDetails, RoomMember, RoomSummary, TimelineMessage,
 };
 use crate::matrix::crypto;
+use crate::matrix::media;
 use crate::store::keychain;
 use crate::AppState;
 
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 // Auth commands (existing)
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 
 /// Login to Matrix homeserver with password
 #[tauri::command]
@@ -443,9 +444,9 @@ pub async fn get_user_avatar(
     client.get_user_avatar(&user_id).await
 }
 
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 // Encryption & Security Commands (Phase 3)
-// ══════════════════════════════════════════════════════════
+// ----------------------------------------------------------
 
 /// Enable Megolm encryption for a room
 #[tauri::command]
@@ -826,4 +827,331 @@ pub async fn get_lock_timeout() -> Result<u64, AppError> {
 #[tauri::command]
 pub async fn disable_auto_lock() -> Result<(), AppError> {
     crypto::disable_auto_lock()
+}
+
+// ------------------------------------------------------------
+// Media Cache Commands (Phase 4)
+// ------------------------------------------------------------
+
+/// Cache info returned to frontend
+#[derive(serde::Serialize, Clone)]
+pub struct CacheInfo {
+    pub total_bytes: u64,
+    pub file_count: u64,
+    pub max_bytes: u64,
+}
+
+/// Path to the media cache directory
+fn media_cache_dir() -> Result<std::path::PathBuf, AppError> {
+    let base = dirs::cache_dir()
+        .ok_or_else(|| AppError::Internal("Cannot determine cache directory".into()))?;
+    Ok(base.join("pufferchat").join("media"))
+}
+
+/// Path to the cache config file (stores max_bytes)
+fn cache_config_path() -> Result<std::path::PathBuf, AppError> {
+    let base = dirs::cache_dir()
+        .ok_or_else(|| AppError::Internal("Cannot determine cache directory".into()))?;
+    Ok(base.join("pufferchat").join("cache_config.json"))
+}
+
+fn read_max_bytes() -> u64 {
+    if let Ok(path) = cache_config_path() {
+        if let Ok(data) = std::fs::read_to_string(&path) {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) {
+                if let Some(n) = v.get("max_bytes").and_then(|n| n.as_u64()) {
+                    return n;
+                }
+            }
+        }
+    }
+    0 // 0 = unlimited
+}
+
+fn write_max_bytes(max_bytes: u64) -> Result<(), AppError> {
+    let path = cache_config_path()?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| AppError::Internal(format!("Failed to create config dir: {}", e)))?;
+    }
+    let json = serde_json::json!({ "max_bytes": max_bytes });
+    std::fs::write(&path, json.to_string())
+        .map_err(|e| AppError::Internal(format!("Failed to write cache config: {}", e)))?;
+    Ok(())
+}
+
+/// Get cache size info
+#[tauri::command]
+pub async fn get_cache_size() -> Result<CacheInfo, AppError> {
+    let cache_dir = media_cache_dir()?;
+    let mut total_bytes: u64 = 0;
+    let mut file_count: u64 = 0;
+
+    if cache_dir.exists() {
+        fn walk(dir: &std::path::Path, total: &mut u64, count: &mut u64) {
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        walk(&path, total, count);
+                    } else if let Ok(meta) = entry.metadata() {
+                        *total += meta.len();
+                        *count += 1;
+                    }
+                }
+            }
+        }
+        walk(&cache_dir, &mut total_bytes, &mut file_count);
+    }
+
+    Ok(CacheInfo {
+        total_bytes,
+        file_count,
+        max_bytes: read_max_bytes(),
+    })
+}
+
+/// Clear all cached media files
+#[tauri::command]
+pub async fn clear_media_cache() -> Result<(), AppError> {
+    let cache_dir = media_cache_dir()?;
+    if cache_dir.exists() {
+        std::fs::remove_dir_all(&cache_dir)
+            .map_err(|e| AppError::Internal(format!("Failed to clear cache: {}", e)))?;
+    }
+    std::fs::create_dir_all(&cache_dir)
+        .map_err(|e| AppError::Internal(format!("Failed to recreate cache dir: {}", e)))?;
+    log::info!("Media cache cleared");
+    Ok(())
+}
+
+/// Set maximum cache size in bytes (0 = unlimited)
+#[tauri::command]
+pub async fn set_cache_limit(max_bytes: u64) -> Result<(), AppError> {
+    write_max_bytes(max_bytes)?;
+    log::info!("Cache limit set to {} bytes", max_bytes);
+    Ok(())
+}
+// ═══════════════════════════════════════════════════════
+// Media commands (Phase 4)
+// ═══════════════════════════════════════════════════════
+
+/// Send an image to a room
+#[tauri::command]
+pub async fn send_image(
+    state: State<'_, AppState>,
+    room_id: String,
+    file_path: String,
+    caption: Option<String>,
+) -> Result<String, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    let mime_type = mime_guess::from_path(&file_path)
+        .first_or_octet_stream()
+        .to_string();
+
+    let mxc_url = media::upload_media(client.inner(), &file_path, &mime_type).await?;
+    let mxc_uri: matrix_sdk::ruma::OwnedMxcUri = mxc_url
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::Internal("Invalid mxc URI from upload".into()))?;
+
+    let filename = std::path::Path::new(&file_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "image".into());
+
+    let body = caption.unwrap_or_else(|| filename.clone());
+
+    use matrix_sdk::ruma::events::room::message::{
+        ImageMessageEventContent, MessageType, RoomMessageEventContent,
+    };
+    use matrix_sdk::ruma::events::room::MediaSource;
+
+    let content_msg = ImageMessageEventContent::new(body, MediaSource::Plain(mxc_uri));
+    let msg = RoomMessageEventContent::new(MessageType::Image(content_msg));
+
+    let parsed_room_id: matrix_sdk::ruma::OwnedRoomId = room_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
+
+    let room = client.inner().get_room(&parsed_room_id)
+        .ok_or_else(|| AppError::Matrix("Room not found".into()))?;
+
+    let response = room.send(msg).await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+    Ok(response.event_id.to_string())
+}
+
+/// Send a video to a room
+#[tauri::command]
+pub async fn send_video(
+    state: State<'_, AppState>,
+    room_id: String,
+    file_path: String,
+    caption: Option<String>,
+) -> Result<String, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    let mime_type = mime_guess::from_path(&file_path)
+        .first_or_octet_stream()
+        .to_string();
+
+    let mxc_url = media::upload_media(client.inner(), &file_path, &mime_type).await?;
+    let mxc_uri: matrix_sdk::ruma::OwnedMxcUri = mxc_url
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::Internal("Invalid mxc URI from upload".into()))?;
+
+    let filename = std::path::Path::new(&file_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "video".into());
+
+    let body = caption.unwrap_or_else(|| filename.clone());
+
+    use matrix_sdk::ruma::events::room::message::{
+        VideoMessageEventContent, MessageType, RoomMessageEventContent,
+    };
+    use matrix_sdk::ruma::events::room::MediaSource;
+
+    let content_msg = VideoMessageEventContent::new(body, MediaSource::Plain(mxc_uri));
+    let msg = RoomMessageEventContent::new(MessageType::Video(content_msg));
+
+    let parsed_room_id: matrix_sdk::ruma::OwnedRoomId = room_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
+
+    let room = client.inner().get_room(&parsed_room_id)
+        .ok_or_else(|| AppError::Matrix("Room not found".into()))?;
+
+    let response = room.send(msg).await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+    Ok(response.event_id.to_string())
+}
+
+/// Send audio to a room
+#[tauri::command]
+pub async fn send_audio(
+    state: State<'_, AppState>,
+    room_id: String,
+    file_path: String,
+    caption: Option<String>,
+) -> Result<String, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    let mime_type = mime_guess::from_path(&file_path)
+        .first_or_octet_stream()
+        .to_string();
+
+    let mxc_url = media::upload_media(client.inner(), &file_path, &mime_type).await?;
+    let mxc_uri: matrix_sdk::ruma::OwnedMxcUri = mxc_url
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::Internal("Invalid mxc URI from upload".into()))?;
+
+    let filename = std::path::Path::new(&file_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "audio".into());
+
+    let body = caption.unwrap_or_else(|| filename.clone());
+
+    use matrix_sdk::ruma::events::room::message::{
+        AudioMessageEventContent, MessageType, RoomMessageEventContent,
+    };
+    use matrix_sdk::ruma::events::room::MediaSource;
+
+    let content_msg = AudioMessageEventContent::new(body, MediaSource::Plain(mxc_uri));
+    let msg = RoomMessageEventContent::new(MessageType::Audio(content_msg));
+
+    let parsed_room_id: matrix_sdk::ruma::OwnedRoomId = room_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
+
+    let room = client.inner().get_room(&parsed_room_id)
+        .ok_or_else(|| AppError::Matrix("Room not found".into()))?;
+
+    let response = room.send(msg).await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+    Ok(response.event_id.to_string())
+}
+
+/// Send a generic file to a room
+#[tauri::command]
+pub async fn send_file(
+    state: State<'_, AppState>,
+    room_id: String,
+    file_path: String,
+) -> Result<String, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    let mime_type = mime_guess::from_path(&file_path)
+        .first_or_octet_stream()
+        .to_string();
+
+    let mxc_url = media::upload_media(client.inner(), &file_path, &mime_type).await?;
+    let mxc_uri: matrix_sdk::ruma::OwnedMxcUri = mxc_url
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::Internal("Invalid mxc URI from upload".into()))?;
+
+    let filename = std::path::Path::new(&file_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "file".into());
+
+    use matrix_sdk::ruma::events::room::message::{
+        FileMessageEventContent, MessageType, RoomMessageEventContent,
+    };
+    use matrix_sdk::ruma::events::room::MediaSource;
+
+    let content_msg = FileMessageEventContent::new(filename, MediaSource::Plain(mxc_uri));
+    let msg = RoomMessageEventContent::new(MessageType::File(content_msg));
+
+    let parsed_room_id: matrix_sdk::ruma::OwnedRoomId = room_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
+
+    let room = client.inner().get_room(&parsed_room_id)
+        .ok_or_else(|| AppError::Matrix("Room not found".into()))?;
+
+    let response = room.send(msg).await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+    Ok(response.event_id.to_string())
+}
+
+/// Download media from an mxc URL to a local file
+#[tauri::command]
+pub async fn download_media(
+    state: State<'_, AppState>,
+    mxc_url: String,
+    save_path: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    media::download_media(client.inner(), &mxc_url, &save_path).await
+}
+
+/// Resolve an mxc URL to a full-resolution HTTP URL (not thumbnail)
+#[tauri::command]
+pub async fn resolve_mxc_full_url(
+    state: State<'_, AppState>,
+    mxc_url: String,
+) -> Result<String, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    media::resolve_mxc_to_http(client.inner(), &mxc_url)
 }
