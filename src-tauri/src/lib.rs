@@ -25,8 +25,10 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
+            commands::restore_session,
             commands::matrix_login,
             commands::matrix_logout,
             commands::get_rooms,
@@ -41,6 +43,7 @@ pub fn run() {
             commands::send_typing,
             commands::mark_read,
             commands::get_room_members,
+            commands::search_messages,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PufferChat");

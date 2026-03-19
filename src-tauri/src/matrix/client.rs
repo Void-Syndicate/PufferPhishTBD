@@ -32,6 +32,7 @@ pub struct MatrixClient {
 }
 
 #[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct LoginResult {
     pub user_id: String,
     pub display_name: Option<String>,
@@ -39,6 +40,7 @@ pub struct LoginResult {
 }
 
 #[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct RoomSummary {
     pub room_id: String,
     pub name: Option<String>,
@@ -54,6 +56,7 @@ pub struct RoomSummary {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct TimelineMessage {
     pub id: String,
     pub sender: String,
@@ -64,9 +67,11 @@ pub struct TimelineMessage {
     pub reply_to: Option<String>,
     pub reactions: HashMap<String, Vec<String>>,
     pub msg_type: String,
+    pub replaces: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct RoomMember {
     pub user_id: String,
     pub display_name: Option<String>,
@@ -75,6 +80,7 @@ pub struct RoomMember {
 }
 
 #[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct PaginationResult {
     pub messages: Vec<TimelineMessage>,
     pub end_token: Option<String>,
@@ -83,18 +89,21 @@ pub struct PaginationResult {
 
 /// Tauri event payloads
 #[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct TimelineEvent {
     pub room_id: String,
     pub message: TimelineMessage,
 }
 
 #[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct TypingEvent {
     pub room_id: String,
     pub user_ids: Vec<String>,
 }
 
 #[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct ReadReceiptEvent {
     pub room_id: String,
     pub user_id: String,
@@ -102,6 +111,7 @@ pub struct ReadReceiptEvent {
 }
 
 #[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct RoomUpdateEvent {
     pub room: RoomSummary,
 }
@@ -298,12 +308,15 @@ impl MatrixClient {
             },
         );
 
-        // Spawn sync loop
+let app_handle_sync = app_handle.clone();
         tokio::spawn(async move {
             loop {
                 match client.sync_once(settings.clone()).await {
                     Ok(_response) => {
                         log::debug!("Sync completed successfully");
+                        if let Err(e) = app_handle_sync.emit("matrix://rooms-changed", ()) {
+                            log::error!("Failed to emit rooms-changed: {}", e);
+                        }
                     }
                     Err(e) => {
                         log::error!("Sync error: {}", e);
@@ -414,6 +427,8 @@ impl MatrixClient {
                 }
             }
         }
+        messages.reverse();
+
 
         let has_more = response.end.is_some();
         Ok(PaginationResult {
@@ -637,6 +652,44 @@ impl MatrixClient {
         Ok(result)
     }
 
+    /// Search messages across rooms or in a specific room
+    pub async fn search_messages(&self, room_id: Option<&str>, query: &str, limit: u32) -> Result<Vec<TimelineMessage>, AppError> {
+        if query.is_empty() {
+            return Err(AppError::InvalidInput("Search query cannot be empty".into()));
+        }
+        
+        let query_lower = query.to_lowercase();
+        
+        if let Some(rid) = room_id {
+            let result = self.get_room_messages(rid, None, 200).await?;
+            let filtered: Vec<TimelineMessage> = result.messages
+                .into_iter()
+                .filter(|m| m.body.to_lowercase().contains(&query_lower))
+                .take(limit as usize)
+                .collect();
+            Ok(filtered)
+        } else {
+            let rooms = self.client.joined_rooms();
+            let mut results = Vec::new();
+            for room in rooms {
+                if let Ok(room_msgs) = self.get_room_messages(&room.room_id().to_string(), None, 100).await {
+                    for msg in room_msgs.messages {
+                        if msg.body.to_lowercase().contains(&query_lower) {
+                            results.push(msg);
+                            if results.len() >= limit as usize {
+                                break;
+                            }
+                        }
+                    }
+                }
+                if results.len() >= limit as usize {
+                    break;
+                }
+            }
+            Ok(results)
+        }
+    }
+
     /// Logout and cleanup
     pub async fn logout(&self) -> Result<(), AppError> {
         self.client
@@ -663,6 +716,11 @@ fn timeline_message_from_sync_event(event: &OriginalSyncRoomMessageEvent) -> Tim
 
     let is_edited = matches!(&event.content.relates_to, Some(Relation::Replacement(_)));
 
+    let replaces = match &event.content.relates_to {
+        Some(Relation::Replacement(replacement)) => Some(replacement.event_id.to_string()),
+        _ => None,
+    };
+
     TimelineMessage {
         id: event.event_id.to_string(),
         sender: event.sender.to_string(),
@@ -673,6 +731,7 @@ fn timeline_message_from_sync_event(event: &OriginalSyncRoomMessageEvent) -> Tim
         reply_to,
         reactions: HashMap::new(),
         msg_type,
+        replaces,
     }
 }
 
@@ -694,6 +753,11 @@ fn timeline_message_from_any_event(event: &AnyTimelineEvent) -> Option<TimelineM
                 let is_edited =
                     matches!(&original.content.relates_to, Some(Relation::Replacement(_)));
 
+                let replaces = match &original.content.relates_to {
+                    Some(Relation::Replacement(replacement)) => Some(replacement.event_id.to_string()),
+                    _ => None,
+                };
+
                 Some(TimelineMessage {
                     id: original.event_id.to_string(),
                     sender: original.sender.to_string(),
@@ -704,6 +768,7 @@ fn timeline_message_from_any_event(event: &AnyTimelineEvent) -> Option<TimelineM
                     reply_to,
                     reactions: HashMap::new(),
                     msg_type,
+                    replaces,
                 })
             }
             _ => None,

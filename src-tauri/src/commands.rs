@@ -10,7 +10,7 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::matrix::client::{
-    LoginResult, MatrixClient, PaginationResult, RoomMember, RoomSummary,
+    LoginResult, MatrixClient, PaginationResult, RoomMember, RoomSummary, TimelineMessage,
 };
 use crate::store::keychain;
 use crate::AppState;
@@ -76,6 +76,51 @@ pub async fn matrix_login(
 
     log::info!("Login successful for user: {}", result.user_id);
     Ok(result)
+}
+
+/// Check if saved session exists and restore it
+#[tauri::command]
+pub async fn restore_session(
+    state: State<'_, AppState>,
+) -> Result<Option<LoginResult>, AppError> {
+    let session = keychain::get_session()?;
+
+    let (user_id, homeserver, access_token, device_id) = match session {
+        Some(s) => s,
+        None => return Ok(None),
+    };
+
+    log::info!("Restoring saved session for {}", user_id);
+
+    match MatrixClient::restore(&homeserver, &access_token, &user_id, &device_id).await {
+        Ok(client) => {
+            let display_name = client
+                .inner()
+                .account()
+                .get_display_name()
+                .await
+                .ok()
+                .flatten()
+                .map(|n| n.to_string());
+
+            let result = LoginResult {
+                user_id: user_id.clone(),
+                display_name,
+                device_id: device_id.clone(),
+            };
+
+            let mut client_lock = state.matrix_client.lock().await;
+            *client_lock = Some(client);
+
+            log::info!("Session restored for {}", user_id);
+            Ok(Some(result))
+        }
+        Err(e) => {
+            log::warn!("Session restore failed, clearing stale creds: {}", e);
+            keychain::clear_session()?;
+            Ok(None)
+        }
+    }
 }
 
 /// Logout from Matrix
@@ -240,4 +285,19 @@ pub async fn get_room_members(
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     client.get_room_members(&room_id).await
+}
+
+
+/// Search messages in a room or globally
+#[tauri::command]
+pub async fn search_messages(
+    state: State<'_, AppState>,
+    room_id: Option<String>,
+    query: String,
+    limit: Option<u32>,
+) -> Result<Vec<TimelineMessage>, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    let limit = limit.unwrap_or(50).min(200);
+    client.search_messages(room_id.as_deref(), &query, limit).await
 }

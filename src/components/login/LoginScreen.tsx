@@ -7,9 +7,9 @@ import TextInput from "../retro/TextInput";
 import styles from "./LoginScreen.module.css";
 
 interface LoginResponse {
-  user_id: string;
-  display_name: string | null;
-  device_id: string;
+  userId: string;
+  displayName: string | null;
+  deviceId: string;
 }
 
 export default function LoginScreen() {
@@ -38,10 +38,10 @@ export default function LoginScreen() {
       });
 
       login({
-        userId: result.user_id,
+        userId: result.userId,
         homeserver,
-        displayName: result.display_name,
-        deviceId: result.device_id,
+        displayName: result.displayName,
+        deviceId: result.deviceId,
       });
     } catch (err) {
       setError(String(err));

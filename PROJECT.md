@@ -6,7 +6,7 @@
 
 **PufferChat** is a custom Matrix protocol communication client with a retro AOL-inspired UI, packaged as a native desktop executable. Full Element-level functionality with a modular architecture designed for extensibility, security, and privacy-first communication.
 
-**Status:** Phase 1 Complete — Phase 2 Starting (~15%)
+**Status:** Phase 2 Complete — Phase 3 Ready (~25%)
 **Start Date:** 2026-03-18
 **Stack:** Rust (Tauri) + React + TypeScript + matrix-rust-sdk
 **Target Platforms:** Windows, Linux, macOS

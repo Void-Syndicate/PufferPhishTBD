@@ -1,4 +1,4 @@
-﻿import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMessagesStore, TimelineMessage } from "../../stores/messages";
 import MessageBubble from "./MessageBubble";
@@ -10,8 +10,8 @@ interface MessageListProps {
 
 interface GetRoomMessagesResult {
   messages: TimelineMessage[];
-  end_token: string | null;
-  has_more: boolean;
+  endToken: string | null;
+  hasMore: boolean;
 }
 
 export default function MessageList({ roomId }: MessageListProps) {
@@ -43,7 +43,7 @@ export default function MessageList({ roomId }: MessageListProps) {
         roomId,
         limit: 50,
       });
-      setMessages(roomId, result.messages, result.end_token, result.has_more);
+      setMessages(roomId, result.messages, result.endToken, result.hasMore);
     } catch (e) {
       console.error("Failed to load messages:", e);
       setLoading(roomId, false);
@@ -57,9 +57,9 @@ export default function MessageList({ roomId }: MessageListProps) {
       const result = await invoke<GetRoomMessagesResult>("get_room_messages", {
         roomId,
         limit: 50,
-        fromToken: endToken,
+        from: endToken,
       });
-      prependMessages(roomId, result.messages, result.end_token, result.has_more);
+      prependMessages(roomId, result.messages, result.endToken, result.hasMore);
     } catch (e) {
       console.error("Failed to load more:", e);
       setLoading(roomId, false);

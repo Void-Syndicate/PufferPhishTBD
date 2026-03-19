@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMessagesStore } from "../../stores/messages";
 import { useTypingStore } from "../../stores/typing";
@@ -16,6 +16,8 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
   const typingTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   const replyingTo = useMessagesStore((s) => s.replyingTo[roomId] ?? null);
+  const editingMessage = useMessagesStore((s) => s.editingMessage[roomId] ?? null);
+  const setEditingMessage = useMessagesStore((s) => s.setEditingMessage);
   const setReplyingTo = useMessagesStore((s) => s.setReplyingTo);
   const typingUsers = useTypingStore((s) => s.typing[roomId] ?? []);
   const userId = useAuthStore((s) => s.userId);
@@ -38,7 +40,10 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
     if (!body || sending) return;
     setSending(true);
     try {
-      if (replyingTo) {
+      if (editingMessage) {
+        await invoke("edit_message", { roomId, eventId: editingMessage.eventId, newBody: body });
+        setEditingMessage(roomId, null);
+      } else if (replyingTo) {
         await invoke("send_reply", { roomId, body, replyToEventId: replyingTo.eventId });
         setReplyingTo(roomId, null);
       } else {
@@ -62,6 +67,14 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
     }
   };
 
+  // Pre-fill when editing
+  useEffect(() => {
+    if (editingMessage) {
+      setText(editingMessage.body);
+      textareaRef.current?.focus();
+    }
+  }, [editingMessage]);
+
   // Focus on room change
   useEffect(() => {
     textareaRef.current?.focus();
@@ -80,15 +93,22 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
         <button className={styles.fontBtn} title="Bold"><b>B</b></button>
         <button className={styles.fontBtn} title="Italic"><i>I</i></button>
         <button className={styles.fontBtn} title="Underline"><u>U</u></button>
-        <button className={styles.fontBtn} title="Font Color">🎨</button>
-        <button className={styles.fontBtn} title="Font Size">A↕</button>
+        <button className={styles.fontBtn} title="Font Color">??</button>
+        <button className={styles.fontBtn} title="Font Size">A?</button>
       </div>
 
       {replyingTo && (
         <div className={styles.replyPreview}>
-          <span>↩ Replying to <b>{replyingTo.senderName || replyingTo.sender}</b>:</span>
+          <span>? Replying to <b>{replyingTo.senderName || replyingTo.sender}</b>:</span>
           <span className={styles.replyText}>{replyingTo.body.slice(0, 100)}</span>
-          <button className={styles.replyCancelBtn} onClick={() => setReplyingTo(roomId, null)}>✕</button>
+          <button className={styles.replyCancelBtn} onClick={() => setReplyingTo(roomId, null)}>?</button>
+        </div>
+      )}
+
+      {editingMessage && (
+        <div className={styles.replyPreview}>
+          <span>?? Editing message</span>
+          <button className={styles.replyCancelBtn} onClick={() => { setEditingMessage(roomId, null); setText(""); }}>?</button>
         </div>
       )}
 
@@ -107,9 +127,7 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
           className={styles.sendBtn}
           onClick={handleSend}
           disabled={!text.trim() || sending}
-        >
-          Send
-        </button>
+        >{editingMessage ? "Save Edit" : "Send"}</button>
       </div>
 
       <div className={styles.typingIndicator}>{typingText}</div>

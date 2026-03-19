@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 
 export interface Reaction {
   emoji: string;
@@ -16,6 +16,7 @@ export interface TimelineMessage {
   replyTo: string | null;
   reactions: Reaction[];
   isRedacted: boolean;
+  replaces: string | null;
 }
 
 interface RoomMessages {
@@ -28,6 +29,7 @@ interface RoomMessages {
 export interface MessagesState {
   rooms: Record<string, RoomMessages>;
   replyingTo: Record<string, TimelineMessage | null>;
+  editingMessage: Record<string, TimelineMessage | null>;
 
   // Actions
   setMessages: (roomId: string, messages: TimelineMessage[], endToken: string | null, hasMore: boolean) => void;
@@ -37,6 +39,7 @@ export interface MessagesState {
   removeMessage: (roomId: string, eventId: string) => void;
   setLoading: (roomId: string, loading: boolean) => void;
   setReplyingTo: (roomId: string, message: TimelineMessage | null) => void;
+  setEditingMessage: (roomId: string, message: TimelineMessage | null) => void;
   getRoom: (roomId: string) => RoomMessages;
 }
 
@@ -45,6 +48,7 @@ const emptyRoom: RoomMessages = { messages: [], endToken: null, hasMore: true, i
 export const useMessagesStore = create<MessagesState>((set, get) => ({
   rooms: {},
   replyingTo: {},
+  editingMessage: {},
 
   getRoom: (roomId) => get().rooms[roomId] ?? emptyRoom,
 
@@ -126,4 +130,7 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
 
   setReplyingTo: (roomId, message) =>
     set((s) => ({ replyingTo: { ...s.replyingTo, [roomId]: message } })),
+
+  setEditingMessage: (roomId, message) =>
+    set((s) => ({ editingMessage: { ...s.editingMessage, [roomId]: message } })),
 }));

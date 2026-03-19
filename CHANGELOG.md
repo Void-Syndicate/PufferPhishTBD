@@ -1,5 +1,48 @@
 # PufferChat Changelog
 
+## [0.2.0] - 2026-03-18
+
+### Phase 2 — Core Messaging (Complete)
+
+#### New Features
+- **Full chat functionality** — Send, receive, reply, edit, delete messages in 1:1 and group rooms
+- **Emoji reactions** — Send and display reactions on messages via context menu
+- **Typing indicators** — Real-time "X is typing..." display in message composer
+- **Read receipts** — Sent on room view, received from other users
+- **Message pagination** — Scroll up to load older messages with "Load older messages" button
+- **Message search** — Ctrl+F search bar in chat view, searches room messages with debounced input
+- **Sound effects engine** — Web Audio API synthesized AOL-inspired tones (message received/sent, welcome, door open/close, notification, error). Configurable volume, per-sound enable, global mute. Settings persist in localStorage.
+- **Sound settings panel** — Win98-styled settings dialog accessible from ⚙️ Setup toolbar button. Per-sound test buttons, volume slider, mute toggle.
+- **OS desktop notifications** — Tauri notification plugin. Sends desktop notifications for new messages when window is unfocused. Respects per-room notification settings.
+- **Per-room notification settings** — Right-click rooms in Buddy List to set: All Messages / Mentions Only / Mute. Visual indicators (🔕/💬) on muted/mentions-only rooms.
+- **Live room list updates** — Room list refreshes automatically after each sync cycle via `matrix://rooms-changed` events.
+- **Unread count updates** — Real-time unread badge updates on new messages for non-selected rooms.
+- **AOL Buddy List** — Collapsible groups (Buddies/DMs, Chat Rooms), presence icons, unread badges, encryption indicators.
+- **Message context menu** — Right-click messages for Reply, Edit (own), React, Delete (own).
+- **Inline message editing** — Edit mode in composer with pre-filled text, "Save Edit" button, cancel option.
+- **Reply threading** — Reply indicator in composer, reply preview on messages showing original content.
+- **Welcome sound** — AOL-style welcome tone plays on successful login.
+
+#### Bug Fixes
+- Fixed pagination parameter mismatch (`fromToken` → `from`) — pagination was silently failing
+- Fixed camelCase serialization mismatch in `GetRoomMessagesResult` interface
+- Fixed message ordering — pagination results reversed to show oldest-at-top
+- Fixed edit sync events — replacement events now update in-place instead of duplicating
+- Fixed XSS vulnerability in formatted messages — added DOMPurify sanitization with strict tag whitelist
+
+#### Security
+- **VULN-005 FIXED:** XSS via unsanitized `dangerouslySetInnerHTML` on formatted Matrix messages. Added DOMPurify with allowed tags: b, i, u, em, strong, a, br, p, code, pre, blockquote, ul, ol, li, span.
+- **VULN-006 FIXED:** Sync edit events arrived as new messages instead of updating originals. Added `replaces` field to track replacement relations.
+- Installed `@tauri-apps/plugin-notification` for OS notification integration
+- Notification permission requested on first launch
+
+#### Documentation
+- `docs/PHASE2-COMPLETION-PLAN.md` — Full development plan with test matrix
+- `docs/VULNERABILITY-MANAGEMENT.md` — Vulnerability tracking process, current register, audit schedule
+- `docs/PHASE3-SECURITY-PLAN.md` — Encryption implementation plan with threat model
+- npm audit: **0 vulnerabilities**
+- cargo audit: **3 vulnerabilities** (matrix-sdk upstream, documented and risk-assessed), **20 warnings** (GTK3 unmaintained — Tauri upstream)
+
 ## [0.1.1] - 2026-03-18
 
 ### Security Remediations (High Severity)
