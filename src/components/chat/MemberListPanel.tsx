@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import styles from './MemberListPanel.module.css';
+import modStyles from '../rooms/Moderation.module.css';
 
 interface RoomMember {
   userId: string;
@@ -13,15 +14,36 @@ interface MemberListPanelProps {
   roomId: string;
 }
 
+interface ContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  member: RoomMember | null;
+}
+
 function getRoleBadge(powerLevel: number): string {
-  if (powerLevel >= 100) return '\u2605'; // star
-  if (powerLevel >= 50) return '\u2666'; // diamond
+  if (powerLevel >= 100) return '?';
+  if (powerLevel >= 50) return '?';
+  return '';
+}
+
+function getRoleLabel(powerLevel: number): string {
+  if (powerLevel >= 100) return 'Admin';
+  if (powerLevel >= 50) return 'Mod';
   return '';
 }
 
 export default function MemberListPanel({ roomId }: MemberListPanelProps) {
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    visible: false, x: 0, y: 0, member: null,
+  });
+  const [reasonDialog, setReasonDialog] = useState<{
+    action: 'kick' | 'ban';
+    userId: string;
+  } | null>(null);
+  const [reason, setReason] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -40,18 +62,74 @@ export default function MemberListPanel({ roomId }: MemberListPanelProps) {
     return () => { cancelled = true; };
   }, [roomId]);
 
+  const closeContextMenu = useCallback(() => {
+    setContextMenu({ visible: false, x: 0, y: 0, member: null });
+  }, []);
+
+  useEffect(() => {
+    const handler = () => closeContextMenu();
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [closeContextMenu]);
+
+  const handleContextMenu = (e: React.MouseEvent, member: RoomMember) => {
+    e.preventDefault();
+    setContextMenu({ visible: true, x: e.clientX, y: e.clientY, member });
+  };
+
+  const doKickBan = async (action: 'kick' | 'ban') => {
+    if (!reasonDialog) return;
+    try {
+      if (action === 'kick') {
+        await invoke('kick_user', { roomId, userId: reasonDialog.userId, reason: reason || null });
+      } else {
+        await invoke('ban_user', { roomId, userId: reasonDialog.userId, reason: reason || null });
+      }
+      setReasonDialog(null);
+      setReason('');
+      // Refresh
+      const result = await invoke<RoomMember[]>('get_room_members', { roomId });
+      setMembers(result);
+    } catch (e) {
+      console.error(`Failed to ${action}:`, e);
+    }
+  };
+
+  const setPowerLevel = async (userId: string, level: number) => {
+    try {
+      await invoke('set_user_power_level', { roomId, userId, level });
+      const result = await invoke<RoomMember[]>('get_room_members', { roomId });
+      setMembers(result);
+    } catch (e) {
+      console.error('Failed to set power level:', e);
+    }
+    closeContextMenu();
+  };
+
   const admins = members.filter((m) => m.powerLevel >= 100);
   const mods = members.filter((m) => m.powerLevel >= 50 && m.powerLevel < 100);
   const regulars = members.filter((m) => m.powerLevel < 50);
 
   const renderMember = (member: RoomMember) => (
-    <div key={member.userId} className={styles.memberItem} title={member.userId}>
-      <span className={styles.avatar}>\uD83D\uDC64</span>
+    <div
+      key={member.userId}
+      className={styles.memberItem}
+      title={`${member.userId} (Power: ${member.powerLevel})`}
+      onContextMenu={(e) => handleContextMenu(e, member)}
+    >
+      <span className={styles.avatar}>??</span>
       <div className={styles.memberInfo}>
         <span className={styles.displayName}>
           {member.displayName || member.userId}
           {getRoleBadge(member.powerLevel) && (
-            <span className={styles.roleBadge}>{getRoleBadge(member.powerLevel)}</span>
+            <span className={styles.roleBadge} title={`${getRoleLabel(member.powerLevel)} (${member.powerLevel})`}>
+              {getRoleBadge(member.powerLevel)}
+            </span>
+          )}
+          {member.powerLevel > 0 && member.powerLevel < 50 && (
+            <span className={styles.powerNum} title={`Power: ${member.powerLevel}`}>
+              [{member.powerLevel}]
+            </span>
           )}
         </span>
         <span className={styles.userId}>{member.userId}</span>
@@ -62,7 +140,7 @@ export default function MemberListPanel({ roomId }: MemberListPanelProps) {
   return (
     <div className={styles.panel}>
       <div className={styles.panelHeader}>
-        <span>\uD83D\uDC65 Members ({members.length})</span>
+        <span>?? Members ({members.length})</span>
       </div>
       <div className={styles.memberList}>
         {loading ? (
@@ -71,13 +149,13 @@ export default function MemberListPanel({ roomId }: MemberListPanelProps) {
           <>
             {admins.length > 0 && (
               <div className={styles.roleGroup}>
-                <div className={styles.roleHeader}>Admins ({admins.length})</div>
+                <div className={styles.roleHeader}>?? Admins ({admins.length})</div>
                 {admins.map(renderMember)}
               </div>
             )}
             {mods.length > 0 && (
               <div className={styles.roleGroup}>
-                <div className={styles.roleHeader}>Moderators ({mods.length})</div>
+                <div className={styles.roleHeader}>??? Moderators ({mods.length})</div>
                 {mods.map(renderMember)}
               </div>
             )}
@@ -90,6 +168,90 @@ export default function MemberListPanel({ roomId }: MemberListPanelProps) {
           </>
         )}
       </div>
+
+      {/* Context Menu */}
+      {contextMenu.visible && contextMenu.member && (
+        <div
+          className={modStyles.contextMenu}
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ padding: '3px 12px', fontWeight: 'bold', fontSize: '10px', color: '#666' }}>
+            {contextMenu.member.displayName || contextMenu.member.userId}
+          </div>
+          <div className={modStyles.contextMenuSep} />
+          <button className={modStyles.contextMenuItem} onClick={() => {
+            setReasonDialog({ action: 'kick', userId: contextMenu.member!.userId });
+            closeContextMenu();
+          }}>?? Kick</button>
+          <button className={modStyles.contextMenuItem} onClick={() => {
+            setReasonDialog({ action: 'ban', userId: contextMenu.member!.userId });
+            closeContextMenu();
+          }}>?? Ban</button>
+          <div className={modStyles.contextMenuSep} />
+          <button className={modStyles.contextMenuItem} onClick={() => setPowerLevel(contextMenu.member!.userId, 100)}>
+            ?? Make Admin
+          </button>
+          <button className={modStyles.contextMenuItem} onClick={() => setPowerLevel(contextMenu.member!.userId, 50)}>
+            ??? Make Moderator
+          </button>
+          <button className={modStyles.contextMenuItem} onClick={() => setPowerLevel(contextMenu.member!.userId, 0)}>
+            ?? Remove Role
+          </button>
+        </div>
+      )}
+
+      {/* Reason Dialog */}
+      {reasonDialog && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 10000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: 'var(--win-bg)', border: '2px solid',
+            borderColor: 'var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light)',
+            padding: '8px', width: '260px',
+          }}>
+            <div style={{
+              padding: '3px 6px', background: 'linear-gradient(180deg, var(--aol-blue), var(--aol-blue-dark))',
+              color: 'white', fontWeight: 'bold', fontSize: '11px', marginBottom: '6px',
+            }}>
+              {reasonDialog.action === 'kick' ? '?? Kick' : '?? Ban'} {reasonDialog.userId}
+            </div>
+            <input
+              style={{
+                width: '100%', boxSizing: 'border-box', padding: '3px 6px',
+                fontFamily: 'var(--font-system)', fontSize: '11px', border: '2px inset', marginBottom: '6px',
+              }}
+              placeholder="Reason (optional)"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') doKickBan(reasonDialog.action); }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+              <button
+                style={{
+                  padding: '3px 12px', fontFamily: 'var(--font-system)', fontSize: '11px',
+                  cursor: 'pointer', border: '2px solid',
+                  borderColor: 'var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light)',
+                  background: 'var(--win-bg)',
+                }}
+                onClick={() => { setReasonDialog(null); setReason(''); }}
+              >Cancel</button>
+              <button
+                style={{
+                  padding: '3px 12px', fontFamily: 'var(--font-system)', fontSize: '11px',
+                  fontWeight: 'bold', cursor: 'pointer', border: '2px solid',
+                  borderColor: 'var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light)',
+                  background: 'var(--win-bg)',
+                }}
+                onClick={() => doKickBan(reasonDialog.action)}
+              >{reasonDialog.action === 'kick' ? 'Kick' : 'Ban'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

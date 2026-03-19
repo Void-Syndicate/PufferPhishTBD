@@ -1,4 +1,4 @@
-/* AOL Buddy List */
+﻿/* AOL Buddy List */
 
 .buddyList {
   display: flex;
@@ -44,6 +44,10 @@
   margin-bottom: 2px;
 }
 
+.group.dragOver {
+  background: rgba(0, 102, 204, 0.08);
+}
+
 .groupHeader {
   display: flex;
   align-items: center;
@@ -53,6 +57,7 @@
   background: var(--win-bg);
   font-weight: bold;
   font-size: 10px;
+  user-select: none;
 }
 
 .groupHeader:hover {
@@ -101,6 +106,15 @@
 
 .roomItem:hover .lockIcon {
   filter: brightness(2);
+}
+
+.roomItem[draggable="true"] {
+  cursor: grab;
+}
+
+.roomItem[draggable="true"]:active {
+  cursor: grabbing;
+  opacity: 0.6;
 }
 
 .selected {
@@ -223,4 +237,109 @@
 
 .headerBtn:active {
   background: rgba(0,0,0,0.1);
+}
+
+/* Add Category Bar */
+.addCategoryBar {
+  padding: 4px 8px;
+  border-top: 1px solid var(--win-border-shadow);
+  background: var(--win-bg);
+}
+
+.addCatBtn {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed var(--win-border-shadow);
+  color: var(--win-border-shadow);
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+.addCatBtn:hover {
+  border-color: var(--aol-blue);
+  color: var(--aol-blue);
+}
+
+.newCatInput {
+  display: flex;
+  gap: 2px;
+}
+
+.catInput {
+  flex: 1;
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 2px 4px;
+  border: 1px solid var(--win-border-shadow);
+  outline: none;
+}
+
+.catInput:focus {
+  border-color: var(--aol-blue);
+}
+
+.catInputBtn {
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--win-bg);
+  border: 1px outset var(--win-border-light);
+  cursor: pointer;
+}
+
+.catInputBtn:active {
+  border-style: inset;
+}
+
+/* Spaces Section (Phase 5) */
+.spacesSection {
+  padding: 2px 0;
+}
+
+.spacesSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+}
+
+.spaceItem {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 10px;
+  font-family: var(--font-system);
+}
+
+.spaceItem:hover {
+  background: #D0D0D0;
+}
+
+.spaceSelected {
+  background: var(--aol-blue);
+  color: var(--aol-white);
+}
+
+.spaceSelected .spaceName,
+.spaceSelected .groupCount {
+  color: var(--aol-white);
+}
+
+.spaceName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--aol-black);
+  font-size: 10px;
+}
+
+.spacesDivider {
+  height: 1px;
+  background: var(--win-border-shadow);
+  margin: 3px 8px;
 }

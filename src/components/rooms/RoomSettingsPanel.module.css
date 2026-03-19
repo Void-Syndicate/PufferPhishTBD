@@ -1,0 +1,221 @@
+/* Room Settings Panel - AOL/Win95 Style */
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.tabBar {
+  display: flex;
+  gap: 0;
+  padding: 0 4px;
+  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
+}
+
+.tab {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  padding: 3px 10px;
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-shadow) var(--win-border-light);
+  background: var(--win-surface);
+  cursor: pointer;
+  margin-right: 2px;
+  position: relative;
+  bottom: -2px;
+}
+
+.tab:hover {
+  background: var(--win-face);
+}
+
+.tabActive {
+  background: var(--win-face);
+  border-bottom-color: var(--win-face);
+  font-weight: bold;
+  bottom: -2px;
+  padding-bottom: 5px;
+}
+
+.tabContent {
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  background: var(--win-face);
+  padding: 10px;
+  min-height: 240px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.fieldLabel {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: var(--aol-black);
+  font-weight: bold;
+}
+
+.fieldValue {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: var(--aol-black);
+  padding: 2px 4px;
+  background: var(--win-surface);
+  border: 1px solid var(--win-border-shadow);
+  user-select: all;
+  word-break: break-all;
+}
+
+.fieldRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.aliasList {
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  background: var(--aol-white);
+  max-height: 120px;
+  overflow-y: auto;
+  margin-bottom: 6px;
+}
+
+.aliasItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px;
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  border-bottom: 1px solid var(--win-border-shadow);
+}
+
+.aliasItem:last-child {
+  border-bottom: none;
+}
+
+.aliasText {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aliasCanonical {
+  font-size: 10px;
+  color: var(--aol-blue);
+  margin-left: 4px;
+  font-weight: bold;
+}
+
+.aliasActions {
+  display: flex;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+.addAliasRow {
+  display: flex;
+  gap: 4px;
+}
+
+.addAliasRow > :first-child {
+  flex: 1;
+}
+
+.buttonRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--win-border-shadow);
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  padding: 2px 6px;
+  border: 1px solid var(--win-border-shadow);
+  background: var(--win-surface);
+}
+
+.statusOn {
+  color: #008000;
+}
+
+.statusOff {
+  color: #CC0000;
+}
+
+.warningBox {
+  background: #FFFFF0;
+  border: 2px solid #CC8800;
+  padding: 6px 8px;
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: #664400;
+  margin-bottom: 8px;
+}
+
+.error {
+  color: #CC0000;
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 2px 4px;
+  background: #FFF0F0;
+  border: 1px solid #CC0000;
+}
+
+.avatarPreview {
+  width: 64px;
+  height: 64px;
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  background: var(--win-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.avatarPreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.settingsGear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  font-family: var(--font-system);
+  color: var(--aol-black);
+}
+
+.settingsGear:hover {
+  background: var(--win-surface);
+  border: 1px outset var(--win-border-light);
+}

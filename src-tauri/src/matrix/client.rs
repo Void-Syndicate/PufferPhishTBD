@@ -1,4 +1,4 @@
-﻿use matrix_sdk::{
+use matrix_sdk::{
     config::SyncSettings,
     room::Room,
     ruma::{
@@ -1224,6 +1224,272 @@ impl MatrixClient {
     pub fn user_id(&self) -> &OwnedUserId {
         &self.user_id
     }
+
+    // ----------------------------------------------------------
+    // Room Settings Commands (Phase 5)
+    // ----------------------------------------------------------
+
+    /// Set room name
+    pub async fn set_room_name(&self, room_id: &str, name: &str) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        use matrix_sdk::ruma::events::room::name::RoomNameEventContent;
+        let content = RoomNameEventContent::new(name.to_string());
+        room.send_state_event(content).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Set room topic
+    pub async fn set_room_topic(&self, room_id: &str, topic: &str) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        use matrix_sdk::ruma::events::room::topic::RoomTopicEventContent;
+        let content = RoomTopicEventContent::new(topic.to_string());
+        room.send_state_event(content).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Set room avatar from file path
+    pub async fn set_room_avatar(&self, room_id: &str, file_path: &str) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+
+        let mime_type = mime_guess::from_path(file_path)
+            .first_or_octet_stream()
+            .to_string();
+        let mxc_url = crate::matrix::media::upload_media(&self.client, file_path, &mime_type).await?;
+        let mxc_uri: matrix_sdk::ruma::OwnedMxcUri = mxc_url
+            .as_str()
+            .try_into()
+            .map_err(|_| AppError::Internal("Invalid mxc URI from upload".into()))?;
+
+        use matrix_sdk::ruma::events::room::avatar::RoomAvatarEventContent;
+        let mut content = RoomAvatarEventContent::new();
+        content.url = Some(mxc_uri);
+        room.send_state_event(content).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Get room aliases
+    pub async fn get_room_aliases(&self, room_id: &str) -> Result<Vec<String>, AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        let aliases = room.alt_aliases();
+        let mut result: Vec<String> = aliases.iter().map(|a| a.to_string()).collect();
+        if let Some(canonical) = room.canonical_alias() {
+            if !result.contains(&canonical.to_string()) {
+                result.insert(0, canonical.to_string());
+            }
+        }
+        Ok(result)
+    }
+
+    /// Add a room alias
+    pub async fn add_room_alias(&self, room_id: &str, alias: &str) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let alias_id: matrix_sdk::ruma::OwnedRoomAliasId = alias
+            .try_into()
+            .map_err(|_| AppError::InvalidInput("Invalid room alias format".into()))?;
+        let request = matrix_sdk::ruma::api::client::alias::create_alias::v3::Request::new(
+            alias_id,
+            room_id,
+        );
+        self.client.send(request).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Remove a room alias
+    pub async fn remove_room_alias(&self, alias: &str) -> Result<(), AppError> {
+        let alias_id: matrix_sdk::ruma::OwnedRoomAliasId = alias
+            .try_into()
+            .map_err(|_| AppError::InvalidInput("Invalid room alias format".into()))?;
+        let request = matrix_sdk::ruma::api::client::alias::delete_alias::v3::Request::new(
+            alias_id,
+        );
+        self.client.send(request).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Set canonical alias for a room
+    pub async fn set_canonical_alias(&self, room_id: &str, alias: &str) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        let alias_id: matrix_sdk::ruma::OwnedRoomAliasId = alias
+            .try_into()
+            .map_err(|_| AppError::InvalidInput("Invalid room alias format".into()))?;
+        use matrix_sdk::ruma::events::room::canonical_alias::RoomCanonicalAliasEventContent;
+        let mut content = RoomCanonicalAliasEventContent::new();
+        content.alias = Some(alias_id);
+        room.send_state_event(content).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    // ----------------------------------------------------------
+    // Power Levels & Moderation (Phase 5)
+    // ----------------------------------------------------------
+
+    /// Get power levels for a room
+    pub async fn get_power_levels(&self, room_id: &str) -> Result<PowerLevelInfo, AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
+        let pl_event = room.get_state_event_static::<RoomPowerLevelsEventContent>().await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        if let Some(raw) = pl_event {
+            let event = raw.deserialize().map_err(|e| AppError::Matrix(e.to_string()))?;
+            use matrix_sdk::deserialized_responses::SyncOrStrippedState;
+            let content = match event {
+                SyncOrStrippedState::Sync(ref s) => s.as_original().map(|o| o.content.clone()),
+                SyncOrStrippedState::Stripped(ref s) => Some(s.content.clone()),
+            };
+            if let Some(c) = content {
+                let user_levels: HashMap<String, i64> = c.users.iter()
+                    .map(|(uid, pl): (&matrix_sdk::ruma::OwnedUserId, &matrix_sdk::ruma::Int)| (uid.to_string(), i64::from(*pl)))
+                    .collect();
+                return Ok(PowerLevelInfo {
+                    users_default: i64::from(c.users_default),
+                    events_default: i64::from(c.events_default),
+                    state_default: i64::from(c.state_default),
+                    ban: i64::from(c.ban),
+                    kick: i64::from(c.kick),
+                    invite: i64::from(c.invite),
+                    redact: i64::from(c.redact),
+                    user_levels,
+                });
+            }
+        }
+        Ok(PowerLevelInfo {
+            users_default: 0, events_default: 0, state_default: 50,
+            ban: 50, kick: 50, invite: 0, redact: 50,
+            user_levels: HashMap::new(),
+        })
+    }
+
+    /// Set a user's power level
+    pub async fn set_user_power_level(&self, room_id: &str, user_id: &str, level: i64) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        let uid: OwnedUserId = user_id.try_into()
+            .map_err(|_| AppError::InvalidInput("Invalid user ID".into()))?;
+        use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
+        let pl_event = room.get_state_event_static::<RoomPowerLevelsEventContent>().await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        let mut content = if let Some(raw) = pl_event {
+            let event = raw.deserialize().map_err(|e| AppError::Matrix(e.to_string()))?;
+            use matrix_sdk::deserialized_responses::SyncOrStrippedState;
+            match event {
+                SyncOrStrippedState::Sync(ref s) => s.as_original().map(|o| o.content.clone()).unwrap_or_default(),
+                SyncOrStrippedState::Stripped(ref s) => s.content.clone(),
+            }
+        } else {
+            RoomPowerLevelsEventContent::default()
+        };
+        use matrix_sdk::ruma::Int;
+        content.users.insert(uid, Int::new(level).unwrap_or(Int::MIN));
+        room.send_state_event(content).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Kick a user from a room
+    pub async fn kick_user(&self, room_id: &str, user_id: &str, reason: Option<&str>) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        let uid: OwnedUserId = user_id.try_into()
+            .map_err(|_| AppError::InvalidInput("Invalid user ID".into()))?;
+        room.kick_user(&uid, reason).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Ban a user from a room
+    pub async fn ban_user(&self, room_id: &str, user_id: &str, reason: Option<&str>) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        let uid: OwnedUserId = user_id.try_into()
+            .map_err(|_| AppError::InvalidInput("Invalid user ID".into()))?;
+        room.ban_user(&uid, reason).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Unban a user from a room
+    pub async fn unban_user(&self, room_id: &str, user_id: &str) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        let uid: OwnedUserId = user_id.try_into()
+            .map_err(|_| AppError::InvalidInput("Invalid user ID".into()))?;
+        room.unban_user(&uid, None).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Get banned users in a room
+    pub async fn get_banned_users(&self, room_id: &str) -> Result<Vec<BannedUser>, AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        use matrix_sdk::ruma::events::room::member::{MembershipState, RoomMemberEventContent};
+        let members = room.get_state_events_static::<RoomMemberEventContent>().await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        let mut banned = Vec::new();
+        for raw in members {
+            if let Ok(event) = raw.deserialize() {
+                use matrix_sdk::deserialized_responses::SyncOrStrippedState;
+                let (user_id, content) = match &event {
+                    SyncOrStrippedState::Sync(s) => {
+                        if let Some(orig) = s.as_original() {
+                            (orig.state_key.to_string(), Some(orig.content.clone()))
+                        } else {
+                            continue;
+                        }
+                    }
+                    SyncOrStrippedState::Stripped(s) => (s.state_key.to_string(), Some(s.content.clone())),
+                };
+                if let Some(c) = content {
+                    if c.membership == MembershipState::Ban {
+                        banned.push(BannedUser {
+                            user_id,
+                            reason: c.reason.clone(),
+                        });
+                    }
+                }
+            }
+        }
+        Ok(banned)
+    }
+
+    /// Set server ACL for a room
+    pub async fn set_server_acl(&self, room_id: &str, allow: Vec<String>, deny: Vec<String>) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        use matrix_sdk::ruma::events::room::server_acl::RoomServerAclEventContent;
+        let mut content = RoomServerAclEventContent::new(false, vec![], vec![]);
+        content.allow = allow;
+        content.deny = deny;
+        room.send_state_event(content).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Upgrade room to a new version
+    pub async fn upgrade_room(&self, room_id: &str, new_version: &str) -> Result<String, AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let version: matrix_sdk::ruma::RoomVersionId = new_version.try_into()
+            .map_err(|_| AppError::InvalidInput(format!("Invalid room version: {}", new_version)))?;
+        let request = matrix_sdk::ruma::api::client::room::upgrade_room::v3::Request::new(
+            room_id,
+            version,
+        );
+        let response = self.client.send(request).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(response.replacement_room.to_string())
+    }
 }
 
 /// Convert a sync room message event to our TimelineMessage
@@ -1414,4 +1680,29 @@ fn get_or_create_db_passphrase() -> Result<String, AppError> {
 
     keychain::store_secret(KEY, &passphrase)?;
     Ok(passphrase)
+}
+// ----------------------------------------------------------
+// Power Levels & Moderation (Phase 5)
+// ----------------------------------------------------------
+
+/// Power level information for a room
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PowerLevelInfo {
+    pub users_default: i64,
+    pub events_default: i64,
+    pub state_default: i64,
+    pub ban: i64,
+    pub kick: i64,
+    pub invite: i64,
+    pub redact: i64,
+    pub user_levels: HashMap<String, i64>,
+}
+
+/// A banned user entry
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BannedUser {
+    pub user_id: String,
+    pub reason: Option<String>,
 }

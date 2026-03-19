@@ -1,4 +1,4 @@
-﻿mod commands;
+mod commands;
 mod error;
 mod link_preview;
 mod matrix;
@@ -102,6 +102,29 @@ pub fn run() {
             commands::get_cache_size,
             commands::clear_media_cache,
             commands::set_cache_limit,
+            // Spaces (Phase 5)
+            commands::create_space,
+            commands::get_spaces,
+            commands::get_space_children,
+            commands::add_space_child,
+            commands::remove_space_child,
+            // Room Settings (Phase 5)
+            commands::set_room_name,
+            commands::set_room_topic,
+            commands::set_room_avatar,
+            commands::get_room_aliases,
+            commands::add_room_alias,
+            commands::remove_room_alias,
+            commands::set_canonical_alias,
+            commands::upgrade_room,
+            // Power Levels & Moderation (Phase 5)
+            commands::get_power_levels,
+            commands::set_user_power_level,
+            commands::kick_user,
+            commands::ban_user,
+            commands::unban_user,
+            commands::get_banned_users,
+            commands::set_server_acl,
             // Link Preview
             link_preview::fetch_link_preview,
         ])

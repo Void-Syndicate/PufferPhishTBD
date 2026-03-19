@@ -3,6 +3,7 @@ import { useRoomsStore } from "../../stores/rooms";
 import { RoomEncryptionStatus } from "../../stores/encryption";
 import { useEncryption } from "../../hooks/useEncryption";
 import MediaGallery from "./MediaGallery";
+import RoomSettingsPanel from "../rooms/RoomSettingsPanel";
 import styles from "./RoomHeader.module.css";
 
 interface RoomHeaderProps {
@@ -48,6 +49,7 @@ export default function RoomHeader({ roomId, onToggleMembers, showMembers }: Roo
   const [encDetails, setEncDetails] = useState<RoomEncryptionStatus | null>(null);
   const [showEncPopup, setShowEncPopup] = useState(false);
   const [showMediaGallery, setShowMediaGallery] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const handleEncryptionClick = useCallback(async () => {
     if (showEncPopup) {
@@ -87,10 +89,17 @@ export default function RoomHeader({ roomId, onToggleMembers, showMembers }: Roo
         )}
         <button
           className={styles.membersBtn}
+          onClick={() => setShowSettings(true)}
+          title="Room settings"
+        >
+          ⚙️ Settings
+        </button>
+        <button
+          className={styles.membersBtn}
           onClick={() => setShowMediaGallery(true)}
           title="Media gallery"
         >
-          ?? Media
+          🖼️ Media
         </button>
         <button
           className={membersBtnClass}
@@ -102,6 +111,9 @@ export default function RoomHeader({ roomId, onToggleMembers, showMembers }: Roo
       </div>
       {showEncPopup && encDetails && (
         <EncryptionDetails status={encDetails} onClose={() => setShowEncPopup(false)} />
+      )}
+      {showSettings && (
+        <RoomSettingsPanel roomId={roomId} onClose={() => setShowSettings(false)} />
       )}
       {showMediaGallery && (
         <MediaGallery roomId={roomId} onClose={() => setShowMediaGallery(false)} />

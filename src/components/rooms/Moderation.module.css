@@ -1,0 +1,337 @@
+/* Moderation & Power Level panels — AOL retro aesthetic */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  max-height: 500px;
+  overflow-y: auto;
+  width: 340px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background: linear-gradient(180deg, var(--aol-blue), var(--aol-blue-dark));
+  color: var(--aol-white);
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.closeBtn {
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 1px 4px;
+  min-width: 16px;
+}
+
+.closeBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.loading {
+  padding: 16px;
+  text-align: center;
+  color: var(--win-border-shadow);
+  font-size: 11px;
+}
+
+.error {
+  padding: 4px 8px;
+  background: #ffcccc;
+  color: #cc0000;
+  font-size: 10px;
+  border-bottom: 1px solid #cc0000;
+}
+
+.success {
+  padding: 4px 8px;
+  background: #ccffcc;
+  color: #006600;
+  font-size: 10px;
+  border-bottom: 1px solid #006600;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 2px solid var(--win-border-dark);
+}
+
+.tab, .tabActive {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+  background: var(--win-bg);
+  font-family: var(--font-system);
+}
+
+.tabActive {
+  background: var(--aol-blue);
+  color: var(--aol-white);
+}
+
+.tab:hover {
+  background: #e0e0e0;
+}
+
+.section {
+  padding: 6px 8px;
+}
+
+.sectionTitle {
+  font-weight: bold;
+  font-size: 11px;
+  color: var(--aol-blue-dark);
+  margin-bottom: 4px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--win-border-shadow);
+}
+
+.actionGrid {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 8px;
+  font-size: 10px;
+  padding: 4px 0;
+}
+
+.levelBadge {
+  font-weight: bold;
+  color: var(--aol-blue-dark);
+}
+
+/* Member power list */
+.memberPowerList {
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.memberPowerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 4px;
+  border-bottom: 1px dotted var(--win-border-shadow);
+}
+
+.memberPowerRow:hover {
+  background: #e8e8ff;
+}
+
+.memberPowerInfo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.memberName {
+  font-size: 11px;
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+.rolePill {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 2px;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.roleAdmin { background: #ffd700; color: #333; }
+.roleMod { background: #87ceeb; color: #003; }
+.roleMember { background: #ddd; color: #555; }
+
+.editControls {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.editControls button {
+  font-size: 11px;
+  cursor: pointer;
+  background: var(--win-bg);
+  border: 1px solid var(--win-border-dark);
+  padding: 1px 3px;
+}
+
+.customInput {
+  width: 30px;
+  font-size: 10px;
+  font-family: var(--font-system);
+  border: 1px inset;
+  padding: 1px 2px;
+}
+
+.editBtn {
+  font-size: 11px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 2px;
+}
+
+.editBtn:hover {
+  background: var(--aol-blue);
+  border-radius: 2px;
+}
+
+/* Moderation panel */
+.input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 3px 6px;
+  margin-bottom: 4px;
+  font-family: var(--font-system);
+  font-size: 11px;
+  border: 2px inset;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 2px;
+  margin-top: 4px;
+}
+
+.textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 3px 6px;
+  font-family: var(--font-system);
+  font-size: 10px;
+  border: 2px inset;
+  resize: vertical;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.kickBtn, .banBtn, .saveBtn, .unbanBtn {
+  padding: 3px 10px;
+  font-family: var(--font-system);
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  background: var(--win-bg);
+}
+
+.kickBtn:hover { background: #fff3cd; }
+.banBtn:hover { background: #ffcccc; }
+.saveBtn { margin-top: 6px; }
+.saveBtn:hover { background: #cce5ff; }
+
+.kickBtn:active, .banBtn:active, .saveBtn:active, .unbanBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.bannedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 4px;
+  border-bottom: 1px dotted var(--win-border-shadow);
+}
+
+.bannedInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bannedName {
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.bannedReason {
+  font-size: 9px;
+  color: var(--win-border-shadow);
+  font-style: italic;
+}
+
+.unbanBtn {
+  font-size: 10px;
+  padding: 2px 6px;
+}
+
+.empty {
+  padding: 8px;
+  text-align: center;
+  color: var(--win-border-shadow);
+  font-size: 10px;
+}
+
+.modLog {
+  margin-top: 8px;
+  border-top: 1px solid var(--win-border-shadow);
+  padding-top: 4px;
+}
+
+.logEntry {
+  font-size: 9px;
+  color: #555;
+  padding: 1px 0;
+  font-family: var(--font-mono, monospace);
+}
+
+/* Context menu for MemberListPanel */
+.contextMenu {
+  position: fixed;
+  z-index: 9999;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  padding: 2px;
+  min-width: 120px;
+  box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.contextMenuItem {
+  display: block;
+  width: 100%;
+  padding: 3px 12px;
+  font-family: var(--font-system);
+  font-size: 11px;
+  text-align: left;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.contextMenuItem:hover {
+  background: var(--aol-blue);
+  color: var(--aol-white);
+}
+
+.contextMenuSep {
+  height: 1px;
+  background: var(--win-border-shadow);
+  margin: 2px 4px;
+}

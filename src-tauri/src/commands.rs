@@ -1,4 +1,4 @@
-﻿/// Tauri IPC Commands
+/// Tauri IPC Commands
 ///
 /// All frontend <-> backend communication flows through these commands.
 /// Each command validates input and returns structured results.
@@ -10,8 +10,8 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::matrix::client::{
-    InvitedRoomSummary, LoginResult, MatrixClient, PaginationResult, PublicRoomInfo,
-    RoomDetails, RoomMember, RoomSummary, TimelineMessage,
+    BannedUser, InvitedRoomSummary, LoginResult, MatrixClient, PaginationResult,
+    PowerLevelInfo, PublicRoomInfo, RoomDetails, RoomMember, RoomSummary, TimelineMessage,
 };
 use crate::matrix::crypto;
 use crate::matrix::media;
@@ -932,9 +932,9 @@ pub async fn set_cache_limit(max_bytes: u64) -> Result<(), AppError> {
     log::info!("Cache limit set to {} bytes", max_bytes);
     Ok(())
 }
-// ═══════════════════════════════════════════════════════
+// -------------------------------------------------------
 // Media commands (Phase 4)
-// ═══════════════════════════════════════════════════════
+// -------------------------------------------------------
 
 /// Send an image to a room
 #[tauri::command]
@@ -1154,4 +1154,477 @@ pub async fn resolve_mxc_full_url(
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     media::resolve_mxc_to_http(client.inner(), &mxc_url)
+}// ----------------------------------------------------------
+// Spaces Commands (Phase 5)
+// ----------------------------------------------------------
+
+/// Summary of a child room/subspace in a space
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SpaceChild {
+    pub room_id: String,
+    pub name: Option<String>,
+    pub topic: Option<String>,
+    pub num_members: u64,
+    pub is_space: bool,
+    pub order: Option<String>,
+    pub suggested: bool,
+}
+
+/// Summary of a joined space
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SpaceSummary {
+    pub room_id: String,
+    pub name: Option<String>,
+    pub topic: Option<String>,
+    pub avatar_url: Option<String>,
+    pub child_count: u64,
+}
+
+/// Create a Matrix Space (room with m.space type)
+#[tauri::command]
+pub async fn create_space(
+    state: State<'_, AppState>,
+    name: String,
+    topic: Option<String>,
+    avatar_url: Option<String>,
+) -> Result<String, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    use matrix_sdk::ruma::api::client::room::create_room::v3::Request as CreateRoomRequest;
+    use matrix_sdk::ruma::api::client::room::create_room::v3::{CreationContent, RoomPreset};
+    use matrix_sdk::ruma::room::RoomType;
+    use matrix_sdk::ruma::serde::Raw;
+
+    let mut request = CreateRoomRequest::new();
+    request.name = Some(name);
+    request.topic = topic;
+    request.preset = Some(RoomPreset::PrivateChat);
+
+    // Set room type to m.space via creation_content
+    let mut creation = CreationContent::new();
+    creation.room_type = Some(RoomType::Space);
+    request.creation_content = Some(Raw::new(&creation)
+        .map_err(|e| AppError::Internal(e.to_string()))?);
+
+    let mut initial_state: Vec<Raw<matrix_sdk::ruma::events::AnyInitialStateEvent>> = Vec::new();
+
+    if let Some(ref avatar) = avatar_url {
+        let avatar_json = serde_json::json!({
+            "type": "m.room.avatar",
+            "state_key": "",
+            "content": {
+                "url": avatar
+            }
+        });
+        let raw = Raw::from_json(serde_json::value::to_raw_value(&avatar_json).unwrap());
+        initial_state.push(raw);
+    }
+
+    request.initial_state = initial_state;
+
+    let response = client.inner().send(request).await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+    Ok(response.room_id.to_string())
+}
+
+/// Get all joined spaces
+#[tauri::command]
+pub async fn get_spaces(
+    state: State<'_, AppState>,
+) -> Result<Vec<SpaceSummary>, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    let rooms = client.inner().joined_rooms();
+    let mut spaces = Vec::new();
+
+    for room in rooms {
+        // Check if this room is a space by looking at room type
+        let is_space = room.is_space();
+        if !is_space {
+            continue;
+        }
+
+        let name = room.display_name().await.ok().map(|n| n.to_string());
+        let topic = room.topic().map(|t| t.to_string());
+
+        let avatar_url = room.avatar_url().map(|u| u.to_string());
+
+        // Count children by looking at m.space.child state events
+        let child_count = {
+            use matrix_sdk::ruma::events::space::child::SpaceChildEventContent;
+            let events = room.get_state_events_static::<SpaceChildEventContent>().await;
+            match events {
+                Ok(evts) => evts.len() as u64,
+                Err(_) => 0,
+            }
+        };
+
+        spaces.push(SpaceSummary {
+            room_id: room.room_id().to_string(),
+            name,
+            topic,
+            avatar_url,
+            child_count,
+        });
+    }
+
+    Ok(spaces)
+}
+
+/// Get children of a space
+#[tauri::command]
+pub async fn get_space_children(
+    state: State<'_, AppState>,
+    space_id: String,
+) -> Result<Vec<SpaceChild>, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    let parsed_space_id: matrix_sdk::ruma::OwnedRoomId = space_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid space ID".into()))?;
+
+    let space_room = client.inner().get_room(&parsed_space_id)
+        .ok_or_else(|| AppError::RoomNotFound(space_id.clone()))?;
+
+    use matrix_sdk::ruma::events::space::child::SpaceChildEventContent;
+    let child_events = space_room.get_state_events_static::<SpaceChildEventContent>().await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+    let mut children = Vec::new();
+
+    for raw_event in child_events {
+        if let Ok(event) = raw_event.deserialize() {
+            let child_room_id = event.state_key().to_string();
+            if child_room_id.is_empty() {
+                continue;
+            }
+
+            use matrix_sdk::deserialized_responses::SyncOrStrippedState;
+            let content = match &event {
+                SyncOrStrippedState::Sync(sync_event) => sync_event.as_original().map(|e| &e.content),
+                SyncOrStrippedState::Stripped(_stripped) => None,
+            };
+
+            let order = content.and_then(|c| c.order.clone());
+            let suggested = content.map(|c| c.suggested).unwrap_or(false);
+
+            // Check if via is empty (removed child)
+            let via = content.map(|c| &c.via);
+            if via.map(|v: &Vec<_>| v.is_empty()).unwrap_or(true) {
+                // Redacted or removed child, skip
+                if content.is_none() {
+                    continue;
+                }
+            }
+
+            let parsed_child_id: Result<matrix_sdk::ruma::OwnedRoomId, _> = child_room_id
+                .as_str()
+                .try_into();
+
+            let (name, topic, num_members, is_space) = if let Ok(ref cid) = parsed_child_id {
+                if let Some(child_room) = client.inner().get_room(cid) {
+                    let n = child_room.display_name().await.ok().map(|n| n.to_string());
+                    let t = child_room.topic().map(|t| t.to_string());
+                    let m = child_room.joined_members_count();
+                    let s = child_room.is_space();
+                    (n, t, m, s)
+                } else {
+                    (None, None, 0, false)
+                }
+            } else {
+                (None, None, 0, false)
+            };
+
+            children.push(SpaceChild {
+                room_id: child_room_id,
+                name,
+                topic,
+                num_members,
+                is_space,
+                order,
+                suggested,
+            });
+        }
+    }
+
+    // Sort by order, then name
+    children.sort_by(|a, b| {
+        a.order.cmp(&b.order).then_with(|| a.name.cmp(&b.name))
+    });
+
+    Ok(children)
+}
+
+/// Add a room as a child of a space
+#[tauri::command]
+pub async fn add_space_child(
+    state: State<'_, AppState>,
+    space_id: String,
+    child_room_id: String,
+    order: Option<String>,
+    suggested: Option<bool>,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    let parsed_space_id: matrix_sdk::ruma::OwnedRoomId = space_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid space ID".into()))?;
+
+    let space_room = client.inner().get_room(&parsed_space_id)
+        .ok_or_else(|| AppError::RoomNotFound(space_id.clone()))?;
+
+    use matrix_sdk::ruma::events::space::child::SpaceChildEventContent;
+    use matrix_sdk::ruma::OwnedServerName;
+
+    // Get homeserver from child room ID
+    let server_name: OwnedServerName = child_room_id
+        .split(':')
+        .nth(1)
+        .unwrap_or("matrix.org")
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Cannot parse server from room ID".into()))?;
+
+    let mut content = SpaceChildEventContent::new(vec![server_name]);
+    content.order = order;
+    content.suggested = suggested.unwrap_or(false);
+
+    let child_id: matrix_sdk::ruma::OwnedRoomId = child_room_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid child room ID".into()))?;
+
+    space_room.send_state_event_for_key(&child_id, content).await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Remove a room from a space
+#[tauri::command]
+pub async fn remove_space_child(
+    state: State<'_, AppState>,
+    space_id: String,
+    child_room_id: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    let parsed_space_id: matrix_sdk::ruma::OwnedRoomId = space_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid space ID".into()))?;
+
+    let space_room = client.inner().get_room(&parsed_space_id)
+        .ok_or_else(|| AppError::RoomNotFound(space_id.clone()))?;
+
+    use matrix_sdk::ruma::events::space::child::SpaceChildEventContent;
+
+    // Send empty via list to remove the child
+    let content = SpaceChildEventContent::new(vec![]);
+
+    let child_id: matrix_sdk::ruma::OwnedRoomId = child_room_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid child room ID".into()))?;
+
+    space_room.send_state_event_for_key(&child_id, content).await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+    Ok(())
+}
+
+// ----------------------------------------------------------
+// Room Settings Commands (Phase 5)
+// ----------------------------------------------------------
+
+/// Set room name
+#[tauri::command]
+pub async fn set_room_name(
+    state: State<'_, AppState>,
+    room_id: String,
+    name: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.set_room_name(&room_id, &name).await
+}
+
+/// Set room topic
+#[tauri::command]
+pub async fn set_room_topic(
+    state: State<'_, AppState>,
+    room_id: String,
+    topic: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.set_room_topic(&room_id, &topic).await
+}
+
+/// Set room avatar
+#[tauri::command]
+pub async fn set_room_avatar(
+    state: State<'_, AppState>,
+    room_id: String,
+    file_path: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.set_room_avatar(&room_id, &file_path).await
+}
+
+/// Get room aliases
+#[tauri::command]
+pub async fn get_room_aliases(
+    state: State<'_, AppState>,
+    room_id: String,
+) -> Result<Vec<String>, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.get_room_aliases(&room_id).await
+}
+
+/// Add room alias
+#[tauri::command]
+pub async fn add_room_alias(
+    state: State<'_, AppState>,
+    room_id: String,
+    alias: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.add_room_alias(&room_id, &alias).await
+}
+
+/// Remove room alias
+#[tauri::command]
+pub async fn remove_room_alias(
+    state: State<'_, AppState>,
+    alias: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.remove_room_alias(&alias).await
+}
+
+/// Set canonical alias
+#[tauri::command]
+pub async fn set_canonical_alias(
+    state: State<'_, AppState>,
+    room_id: String,
+    alias: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.set_canonical_alias(&room_id, &alias).await
+}
+
+/// Upgrade room version
+#[tauri::command]
+pub async fn upgrade_room(
+    state: State<'_, AppState>,
+    room_id: String,
+    new_version: String,
+) -> Result<String, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.upgrade_room(&room_id, &new_version).await
+}
+// ----------------------------------------------------------
+// Power Levels & Moderation Commands (Phase 5)
+// ----------------------------------------------------------
+
+/// Get power levels for a room
+#[tauri::command]
+pub async fn get_power_levels(
+    state: State<'_, AppState>,
+    room_id: String,
+) -> Result<PowerLevelInfo, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.get_power_levels(&room_id).await
+}
+
+/// Set a user's power level in a room
+#[tauri::command]
+pub async fn set_user_power_level(
+    state: State<'_, AppState>,
+    room_id: String,
+    user_id: String,
+    level: i64,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.set_user_power_level(&room_id, &user_id, level).await
+}
+
+/// Kick a user from a room
+#[tauri::command]
+pub async fn kick_user(
+    state: State<'_, AppState>,
+    room_id: String,
+    user_id: String,
+    reason: Option<String>,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.kick_user(&room_id, &user_id, reason.as_deref()).await
+}
+
+/// Ban a user from a room
+#[tauri::command]
+pub async fn ban_user(
+    state: State<'_, AppState>,
+    room_id: String,
+    user_id: String,
+    reason: Option<String>,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.ban_user(&room_id, &user_id, reason.as_deref()).await
+}
+
+/// Unban a user from a room
+#[tauri::command]
+pub async fn unban_user(
+    state: State<'_, AppState>,
+    room_id: String,
+    user_id: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.unban_user(&room_id, &user_id).await
+}
+
+/// Get banned users in a room
+#[tauri::command]
+pub async fn get_banned_users(
+    state: State<'_, AppState>,
+    room_id: String,
+) -> Result<Vec<BannedUser>, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.get_banned_users(&room_id).await
+}
+
+/// Set server ACLs for a room
+#[tauri::command]
+pub async fn set_server_acl(
+    state: State<'_, AppState>,
+    room_id: String,
+    allow: Vec<String>,
+    deny: Vec<String>,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.set_server_acl(&room_id, allow, deny).await
 }

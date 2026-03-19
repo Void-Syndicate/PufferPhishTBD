@@ -99,3 +99,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.powerNum {
+  margin-left: 3px;
+  font-size: 9px;
+  color: #888;
+  font-weight: normal;
+}

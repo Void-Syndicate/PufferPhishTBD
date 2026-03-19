@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useRoomsStore, RoomSummary } from "../../stores/rooms";
 import { useSettingsStore } from "../../stores/settings";
 import { usePresenceStore } from "../../stores/presence";
+import { useSpaces } from "../../hooks/useSpaces";
+import { SpaceChild } from "../../stores/spaces";
 import Avatar from "../retro/Avatar";
 import styles from "./BuddyList.module.css";
 
@@ -99,15 +101,17 @@ function RoomItem({ room, isSelected, onSelect }: {
   );
 }
 
-function CollapsibleGroup({ title, children, count }: {
+function CollapsibleGroup({ title, children, count, icon, indent }: {
   title: string;
   children: React.ReactNode;
   count: number;
+  icon?: string;
+  indent?: number;
 }) {
   const [expanded, setExpanded] = useState(true);
 
   return (
-    <div className={styles.group}>
+    <div className={styles.group} style={indent ? { paddingLeft: `${indent * 12}px` } : undefined}>
       <div
         className={styles.groupHeader}
         onClick={() => setExpanded(!expanded)}
@@ -115,10 +119,126 @@ function CollapsibleGroup({ title, children, count }: {
         tabIndex={0}
       >
         <span className={styles.expandIcon}>{expanded ? "\u25BC" : "\u25B6"}</span>
+        {icon && <span style={{ fontSize: "11px", marginRight: "2px" }}>{icon}</span>}
         <span className={styles.groupTitle}>{title}</span>
         <span className={styles.groupCount}>({count})</span>
       </div>
       {expanded && <div className={styles.groupItems}>{children}</div>}
+    </div>
+  );
+}
+
+function SpaceSection({ onSelectSpace }: { onSelectSpace: (id: string | null) => void }) {
+  const {
+    spaces,
+    childrenBySpace,
+    selectedSpaceId,
+    expandedSpaces,
+    fetchSpaces,
+    fetchChildren,
+    selectSpace,
+    toggleExpanded,
+  } = useSpaces();
+
+  useEffect(() => {
+    fetchSpaces();
+  }, [fetchSpaces]);
+
+  // Fetch children for expanded spaces
+  useEffect(() => {
+    for (const spaceId of expandedSpaces) {
+      if (!childrenBySpace[spaceId]) {
+        fetchChildren(spaceId);
+      }
+    }
+  }, [expandedSpaces, childrenBySpace, fetchChildren]);
+
+  const handleSelect = (spaceId: string | null) => {
+    selectSpace(spaceId);
+    onSelectSpace(spaceId);
+    if (spaceId) {
+      // Auto-expand and fetch children
+      if (!expandedSpaces.has(spaceId)) {
+        toggleExpanded(spaceId);
+      }
+      if (!childrenBySpace[spaceId]) {
+        fetchChildren(spaceId);
+      }
+    }
+  };
+
+  if (spaces.length === 0) return null;
+
+  const renderSubspaces = (children: SpaceChild[], depth: number) => {
+    const subspaces = children.filter((c) => c.isSpace);
+    if (subspaces.length === 0) return null;
+    return subspaces.map((sub) => {
+      const isExpanded = expandedSpaces.has(sub.roomId);
+      const subChildren = childrenBySpace[sub.roomId] || [];
+      return (
+        <div key={sub.roomId} style={{ paddingLeft: `${depth * 10}px` }}>
+          <div
+            className={`${styles.spaceItem} ${selectedSpaceId === sub.roomId ? styles.spaceSelected : ""}`}
+            onClick={() => handleSelect(sub.roomId)}
+          >
+            <span
+              className={styles.expandIcon}
+              onClick={(e) => { e.stopPropagation(); toggleExpanded(sub.roomId); if (!childrenBySpace[sub.roomId]) fetchChildren(sub.roomId); }}
+              style={{ cursor: "pointer" }}
+            >
+              {isExpanded ? "\u25BC" : "\u25B6"}
+            </span>
+            <span style={{ fontSize: "11px" }}>{"\uD83D\uDCC2"}</span>
+            <span className={styles.spaceName}>{sub.name || sub.roomId}</span>
+          </div>
+          {isExpanded && subChildren.length > 0 && renderSubspaces(subChildren, depth + 1)}
+        </div>
+      );
+    });
+  };
+
+  return (
+    <div className={styles.spacesSection}>
+      <div className={styles.spacesSectionHeader}>
+        <span style={{ fontSize: "11px" }}>{"\uD83D\uDCC1"}</span>
+        <span style={{ fontWeight: "bold", fontSize: "10px", color: "var(--aol-blue-dark)" }}>Spaces</span>
+      </div>
+
+      {/* All Rooms option */}
+      <div
+        className={`${styles.spaceItem} ${selectedSpaceId === null ? styles.spaceSelected : ""}`}
+        onClick={() => handleSelect(null)}
+      >
+        <span style={{ fontSize: "11px", width: "14px", textAlign: "center" }}>{"\uD83C\uDF10"}</span>
+        <span className={styles.spaceName}>All Rooms</span>
+      </div>
+
+      {spaces.map((space) => {
+        const isExpanded = expandedSpaces.has(space.roomId);
+        const children = childrenBySpace[space.roomId] || [];
+        return (
+          <div key={space.roomId}>
+            <div
+              className={`${styles.spaceItem} ${selectedSpaceId === space.roomId ? styles.spaceSelected : ""}`}
+              onClick={() => handleSelect(space.roomId)}
+            >
+              <span
+                className={styles.expandIcon}
+                onClick={(e) => { e.stopPropagation(); toggleExpanded(space.roomId); if (!childrenBySpace[space.roomId]) fetchChildren(space.roomId); }}
+                style={{ cursor: "pointer" }}
+              >
+                {isExpanded ? "\u25BC" : "\u25B6"}
+              </span>
+              <span style={{ fontSize: "11px" }}>{"\uD83D\uDCC1"}</span>
+              <span className={styles.spaceName}>{space.name || space.roomId}</span>
+              <span className={styles.groupCount}>({space.childCount})</span>
+            </div>
+            {isExpanded && children.length > 0 && renderSubspaces(children, 1)}
+          </div>
+        );
+      })}
+
+      <div className={styles.spacesDivider} />
     </div>
   );
 }
@@ -130,7 +250,26 @@ interface BuddyListProps {
 
 export default function BuddyList({ onCreateRoom, onJoinRoom }: BuddyListProps) {
   const { rooms, selectedRoomId, selectRoom, isLoading } = useRoomsStore();
-  const grouped = groupRooms(rooms);
+  const [spaceFilter, setSpaceFilter] = useState<string | null>(null);
+  const { childrenBySpace, fetchChildren } = useSpaces();
+
+  // Get child room IDs for selected space
+  const getFilteredRooms = (): RoomSummary[] => {
+    if (!spaceFilter) return rooms;
+    const children = childrenBySpace[spaceFilter] || [];
+    const childIds = new Set(children.map((c) => c.roomId));
+    return rooms.filter((r) => childIds.has(r.roomId));
+  };
+
+  const handleSelectSpace = (spaceId: string | null) => {
+    setSpaceFilter(spaceId);
+    if (spaceId && !childrenBySpace[spaceId]) {
+      fetchChildren(spaceId);
+    }
+  };
+
+  const filteredRooms = getFilteredRooms();
+  const grouped = groupRooms(filteredRooms);
 
   return (
     <div className={styles.buddyList}>
@@ -149,34 +288,42 @@ export default function BuddyList({ onCreateRoom, onJoinRoom }: BuddyListProps) 
 
       {isLoading ? (
         <div className={styles.loading}>Loading rooms...</div>
-      ) : rooms.length === 0 ? (
-        <div className={styles.empty}>No rooms yet.</div>
       ) : (
         <div className={styles.list}>
-          {grouped.directs.length > 0 && (
-            <CollapsibleGroup title="Buddies (DMs)" count={grouped.directs.length}>
-              {grouped.directs.map((room) => (
-                <RoomItem
-                  key={room.roomId}
-                  room={room}
-                  isSelected={selectedRoomId === room.roomId}
-                  onSelect={() => selectRoom(room.roomId)}
-                />
-              ))}
-            </CollapsibleGroup>
-          )}
+          <SpaceSection onSelectSpace={handleSelectSpace} />
 
-          {grouped.groups.length > 0 && (
-            <CollapsibleGroup title="Chat Rooms" count={grouped.groups.length}>
-              {grouped.groups.map((room) => (
-                <RoomItem
-                  key={room.roomId}
-                  room={room}
-                  isSelected={selectedRoomId === room.roomId}
-                  onSelect={() => selectRoom(room.roomId)}
-                />
-              ))}
-            </CollapsibleGroup>
+          {filteredRooms.length === 0 ? (
+            <div className={styles.empty}>
+              {spaceFilter ? "No rooms in this space." : "No rooms yet."}
+            </div>
+          ) : (
+            <>
+              {grouped.directs.length > 0 && (
+                <CollapsibleGroup title="Buddies (DMs)" count={grouped.directs.length} icon={"\uD83D\uDC64"}>
+                  {grouped.directs.map((room) => (
+                    <RoomItem
+                      key={room.roomId}
+                      room={room}
+                      isSelected={selectedRoomId === room.roomId}
+                      onSelect={() => selectRoom(room.roomId)}
+                    />
+                  ))}
+                </CollapsibleGroup>
+              )}
+
+              {grouped.groups.length > 0 && (
+                <CollapsibleGroup title="Chat Rooms" count={grouped.groups.length} icon={"\uD83D\uDCAC"}>
+                  {grouped.groups.map((room) => (
+                    <RoomItem
+                      key={room.roomId}
+                      room={room}
+                      isSelected={selectedRoomId === room.roomId}
+                      onSelect={() => selectRoom(room.roomId)}
+                    />
+                  ))}
+                </CollapsibleGroup>
+              )}
+            </>
           )}
         </div>
       )}
