@@ -1,6 +1,9 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { useRoomsStore, RoomSummary } from "../../stores/rooms";
 import { useSettingsStore } from "../../stores/settings";
+import { usePresenceStore } from "../../stores/presence";
+import Avatar from "../retro/Avatar";
 import styles from "./BuddyList.module.css";
 
 interface GroupedRooms {
@@ -20,6 +23,7 @@ function RoomItem({ room, isSelected, onSelect }: {
   isSelected: boolean;
   onSelect: () => void;
 }) {
+  const presenceUsers = usePresenceStore((s) => s.users);
   const name = room.name || room.roomId;
   const hasUnread = room.unreadCount > 0;
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
@@ -38,6 +42,21 @@ function RoomItem({ room, isSelected, onSelect }: {
     return () => window.removeEventListener("click", close);
   }, [ctxMenu]);
 
+  const handleLeave = async () => {
+    setCtxMenu(null);
+    if (!confirm(`Leave "${name}"?`)) return;
+    try {
+      await invoke("leave_room", { roomId: room.roomId });
+      const rooms = await invoke<RoomSummary[]>("get_rooms");
+      useRoomsStore.getState().setRooms(rooms);
+      if (useRoomsStore.getState().selectedRoomId === room.roomId) {
+        useRoomsStore.getState().selectRoom(null);
+      }
+    } catch (e) {
+      console.error("Failed to leave room:", e);
+    }
+  };
+
   return (
     <>
       <div
@@ -48,9 +67,13 @@ function RoomItem({ room, isSelected, onSelect }: {
         tabIndex={0}
         onKeyDown={(e) => e.key === "Enter" && onSelect()}
       >
-        <span className={styles.presenceIcon}>
-          {room.isDirect ? "\uD83D\uDC64" : "\uD83D\uDCAC"}
-        </span>
+        <Avatar
+          name={name}
+          avatarUrl={room.avatarUrl}
+          size="small"
+          shape={room.isDirect ? "circle" : "square"}
+          presence={room.isDirect ? (presenceUsers[room.roomId]?.presence ?? "offline") : null}
+        />
         <span className={`${styles.roomName} ${hasUnread ? styles.unread : ""}`}>
           {name}
         </span>
@@ -68,6 +91,8 @@ function RoomItem({ room, isSelected, onSelect }: {
           <div style={{ padding: "3px 12px", cursor: "pointer", background: notifLevel === "all" ? "var(--aol-blue)" : "transparent", color: notifLevel === "all" ? "white" : "black" }} onClick={() => { setRoomNotification(room.roomId, "all"); setCtxMenu(null); }}>{"\uD83D\uDD14"} All Messages</div>
           <div style={{ padding: "3px 12px", cursor: "pointer", background: notifLevel === "mentions" ? "var(--aol-blue)" : "transparent", color: notifLevel === "mentions" ? "white" : "black" }} onClick={() => { setRoomNotification(room.roomId, "mentions"); setCtxMenu(null); }}>{"\uD83D\uDCAC"} Mentions Only</div>
           <div style={{ padding: "3px 12px", cursor: "pointer", background: notifLevel === "mute" ? "var(--aol-blue)" : "transparent", color: notifLevel === "mute" ? "white" : "black" }} onClick={() => { setRoomNotification(room.roomId, "mute"); setCtxMenu(null); }}>{"\uD83D\uDD15"} Mute</div>
+          <div style={{ height: "1px", background: "var(--win-border-shadow)", margin: "2px 0" }} />
+          <div style={{ padding: "3px 12px", cursor: "pointer", color: "#CC0000" }} onClick={handleLeave}>{"\uD83D\uDEAA"} Leave Room</div>
         </div>
       )}
     </>
@@ -98,7 +123,12 @@ function CollapsibleGroup({ title, children, count }: {
   );
 }
 
-export default function BuddyList() {
+interface BuddyListProps {
+  onCreateRoom?: () => void;
+  onJoinRoom?: () => void;
+}
+
+export default function BuddyList({ onCreateRoom, onJoinRoom }: BuddyListProps) {
   const { rooms, selectedRoomId, selectRoom, isLoading } = useRoomsStore();
   const grouped = groupRooms(rooms);
 
@@ -107,6 +137,14 @@ export default function BuddyList() {
       <div className={styles.header}>
         <span className={styles.headerIcon}>{"\uD83D\uDC21"}</span>
         <span className={styles.headerTitle}>Buddy List</span>
+        <div className={styles.headerActions}>
+          {onCreateRoom && (
+            <button className={styles.headerBtn} onClick={onCreateRoom} title="Create Room">+</button>
+          )}
+          {onJoinRoom && (
+            <button className={styles.headerBtn} onClick={onJoinRoom} title="Join Room">#</button>
+          )}
+        </div>
       </div>
 
       {isLoading ? (
@@ -145,4 +183,3 @@ export default function BuddyList() {
     </div>
   );
 }
-

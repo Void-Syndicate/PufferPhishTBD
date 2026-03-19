@@ -1,4 +1,4 @@
-ï»¿import { useEffect } from "react";
+import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -10,8 +10,11 @@ import { useMessagesStore, TimelineMessage } from "../stores/messages";
 import { useTypingStore } from "../stores/typing";
 import { useRoomsStore, RoomSummary } from "../stores/rooms";
 import { useAuthStore } from "../stores/auth";
+import { usePresenceStore } from "../stores/presence";
 import { useSettingsStore } from "../stores/settings";
+import { useReadReceiptStore } from "../stores/readReceipts";
 import { soundEngine } from "../audio/SoundEngine";
+import { useEncryptionStore } from "../stores/encryption";
 
 interface TimelineEvent {
   roomId: string;
@@ -23,10 +26,28 @@ interface TypingEvent {
   userIds: string[];
 }
 
+interface PresenceEvent {
+  userId: string;
+  presence: "online" | "unavailable" | "offline";
+  statusMsg: string | null;
+  lastActiveAgo: number | null;
+}
+
 interface ReadReceiptEvent {
   roomId: string;
   userId: string;
   eventId: string;
+}
+
+interface VerificationRequestEvent {
+  userId: string;
+  flowId: string;
+  timestamp: number;
+}
+
+interface RoomEncryptionChangedEvent {
+  roomId: string;
+  isEncrypted: boolean;
 }
 
 export function useMatrixEvents() {
@@ -38,8 +59,11 @@ export function useMatrixEvents() {
   const setRooms = useRoomsStore((s) => s.setRooms);
   const selectedRoomId = useRoomsStore((s) => s.selectedRoomId);
   const userId = useAuthStore((s) => s.userId);
+  const setPresence = usePresenceStore((s) => s.setPresence);
   const getRoomNotification = useSettingsStore((s) => s.getRoomNotification);
   const soundEnabled = useSettingsStore((s) => s.soundEnabled);
+  const setReceipt = useReadReceiptStore((s) => s.setReceipt);
+  const addPendingVerification = useEncryptionStore((s) => s.addPendingVerification);
 
   useEffect(() => {
     (async () => {
@@ -100,8 +124,14 @@ export function useMatrixEvents() {
       setTyping(event.payload.roomId, event.payload.userIds);
     }).then((u) => unlisteners.push(u));
 
-    listen<ReadReceiptEvent>("matrix://read-receipt", (_event) => {
-      // TODO: Track read receipts per user for display
+    listen<ReadReceiptEvent>("matrix://read-receipt", (event) => {
+      const { roomId, userId: receiptUserId, eventId } = event.payload;
+      setReceipt(roomId, receiptUserId, eventId);
+    }).then((u) => unlisteners.push(u));
+
+    listen<PresenceEvent>("matrix://presence", (event) => {
+      const { userId: uid, presence, statusMsg, lastActiveAgo } = event.payload;
+      setPresence(uid, presence, statusMsg, lastActiveAgo);
     }).then((u) => unlisteners.push(u));
 
     listen<void>("matrix://rooms-changed", async () => {
@@ -113,9 +143,41 @@ export function useMatrixEvents() {
       }
     }).then((u) => unlisteners.push(u));
 
+    // Verification request received
+    listen<VerificationRequestEvent>("matrix://verification-request-received", async (event) => {
+      const { userId: fromUserId, flowId, timestamp } = event.payload;
+      addPendingVerification({ userId: fromUserId, flowId, timestamp });
+
+      // Play sound
+      if (soundEnabled) {
+        soundEngine.play("message-received");
+      }
+
+      // Send desktop notification
+      try {
+        const granted = await isPermissionGranted();
+        if (granted) {
+          sendNotification({
+            title: "PufferChat — Verification Request",
+            body: `${fromUserId} wants to verify your device`,
+          });
+        }
+      } catch { /* ignore */ }
+    }).then((u) => unlisteners.push(u));
+
+    // Room encryption changed
+    listen<RoomEncryptionChangedEvent>("matrix://room-encryption-changed", async (event) => {
+      const { roomId, isEncrypted } = event.payload;
+      updateRoom(roomId, { isEncrypted });
+      // Also refresh rooms list
+      try {
+        const rooms = await invoke<RoomSummary[]>("get_rooms");
+        setRooms(rooms);
+      } catch { /* ignore */ }
+    }).then((u) => unlisteners.push(u));
+
     return () => {
       unlisteners.forEach((u) => u());
     };
-  }, [addMessage, updateMessage, removeMessage, setTyping, updateRoom, setRooms, userId, selectedRoomId, getRoomNotification, soundEnabled]);
+  }, [addMessage, updateMessage, removeMessage, setTyping, updateRoom, setRooms, userId, selectedRoomId, getRoomNotification, soundEnabled, setReceipt, addPendingVerification]);
 }
-

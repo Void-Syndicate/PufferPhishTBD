@@ -1,4 +1,4 @@
-﻿.roomHeader {
+.roomHeader {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -8,6 +8,7 @@
   border-bottom: 2px solid;
   border-bottom-color: var(--win-border-dark);
   min-height: 32px;
+  position: relative;
 }
 
 .roomName {
@@ -30,6 +31,13 @@
 
 .encryptedBadge {
   font-size: 11px;
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+.encryptedBadge:hover {
+  background: rgba(255,255,255,0.2);
 }
 
 .topic {
@@ -39,4 +47,90 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 200px;
+}
+
+.membersBtn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.4);
+  color: var(--aol-white);
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 1px 6px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.membersBtn:hover {
+  background: rgba(255,255,255,0.15);
+}
+
+.membersBtnActive {
+  background: rgba(255,255,255,0.25);
+  border-color: rgba(255,255,255,0.7);
+}
+
+/* Encryption Details Popup */
+.encryptionPopup {
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  z-index: 300;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  box-shadow: 2px 2px 0 var(--win-border-shadow);
+  min-width: 220px;
+  font-family: var(--font-system);
+  color: var(--aol-black);
+}
+
+.encryptionPopupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 6px;
+  background: linear-gradient(180deg, var(--aol-blue), var(--aol-blue-dark));
+  color: var(--aol-white);
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.encryptionPopupClose {
+  background: none;
+  border: none;
+  color: var(--aol-white);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0 2px;
+}
+
+.encryptionPopupClose:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.encryptionPopupBody {
+  padding: 6px 8px;
+}
+
+.encryptionRow {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 10px;
+  border-bottom: 1px solid #E0E0E0;
+}
+
+.encryptionRow:last-child {
+  border-bottom: none;
+}
+
+.encryptionLabel {
+  font-weight: bold;
+  color: var(--aol-blue-dark);
+  min-width: 70px;
+}
+
+.encryptionValue {
+  color: var(--aol-black);
+  word-break: break-all;
 }

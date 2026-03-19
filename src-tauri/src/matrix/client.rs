@@ -57,6 +57,13 @@ pub struct RoomSummary {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct Reaction {
+    pub emoji: String,
+    pub senders: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct TimelineMessage {
     pub id: String,
     pub sender: String,
@@ -65,9 +72,10 @@ pub struct TimelineMessage {
     pub timestamp: i64,
     pub is_edited: bool,
     pub reply_to: Option<String>,
-    pub reactions: HashMap<String, Vec<String>>,
+    pub reactions: Vec<Reaction>,
     pub msg_type: String,
     pub replaces: Option<String>,
+    pub avatar_url: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -114,6 +122,78 @@ pub struct ReadReceiptEvent {
 #[serde(rename_all = "camelCase")]
 pub struct RoomUpdateEvent {
     pub room: RoomSummary,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PresenceUpdate {
+    pub user_id: String,
+    pub presence: String,
+    pub status_msg: Option<String>,
+    pub last_active_ago: Option<u64>,
+}
+
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ReactionSyncEvent {
+    pub room_id: String,
+    pub event_id: String,
+    pub reaction_event_id: String,
+    pub sender: String,
+    pub emoji: String,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct VerificationRequestReceived {
+    pub user_id: String,
+    pub flow_id: String,
+    pub timestamp: i64,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RoomEncryptionChanged {
+    pub room_id: String,
+    pub is_encrypted: bool,
+}
+
+
+/// Public room info returned from directory search
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicRoomInfo {
+    pub room_id: String,
+    pub name: Option<String>,
+    pub topic: Option<String>,
+    pub member_count: u64,
+    pub avatar_url: Option<String>,
+    pub alias: Option<String>,
+    pub world_readable: bool,
+    pub guest_can_join: bool,
+}
+
+/// Detailed room info
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RoomDetails {
+    pub room_id: String,
+    pub name: Option<String>,
+    pub topic: Option<String>,
+    pub member_count: u64,
+    pub is_encrypted: bool,
+    pub is_direct: bool,
+    pub members: Vec<RoomMember>,
+}
+
+/// Invited room summary
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct InvitedRoomSummary {
+    pub room_id: String,
+    pub name: Option<String>,
+    pub inviter: Option<String>,
 }
 
 /// Validate room_id format
@@ -308,7 +388,113 @@ impl MatrixClient {
             },
         );
 
-let app_handle_sync = app_handle.clone();
+// Reaction event handler
+        let handle_clone = app_handle.clone();
+        client.add_event_handler(
+            move |event: matrix_sdk::ruma::events::reaction::SyncReactionEvent, room: Room| {
+                let handle = handle_clone.clone();
+                async move {
+                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) = event {
+                        let annotation = &original.content.relates_to;
+                        let payload = ReactionSyncEvent {
+                            room_id: room.room_id().to_string(),
+                            event_id: annotation.event_id.to_string(),
+                            reaction_event_id: original.event_id.to_string(),
+                            sender: original.sender.to_string(),
+                            emoji: annotation.key.clone(),
+                        };
+                        if let Err(e) = handle.emit("matrix://reaction", &payload) {
+                            log::error!("Failed to emit reaction event: {}", e);
+                        }
+                    }
+                }
+            },
+        );
+
+        // Presence events
+        let handle_clone = app_handle.clone();
+        client.add_event_handler(
+            move |event: matrix_sdk::ruma::events::presence::PresenceEvent| {
+                let handle = handle_clone.clone();
+                async move {
+                    let presence_str = match event.content.presence {
+                        matrix_sdk::ruma::presence::PresenceState::Online => "online",
+                        matrix_sdk::ruma::presence::PresenceState::Unavailable => "unavailable",
+                        matrix_sdk::ruma::presence::PresenceState::Offline => "offline",
+                        _ => "offline",
+                    };
+                    let payload = PresenceUpdate {
+                        user_id: event.sender.to_string(),
+                        presence: presence_str.to_string(),
+                        status_msg: event.content.status_msg.clone(),
+                        last_active_ago: event.content.last_active_ago.map(|d| u64::from(d)),
+                    };
+                    if let Err(e) = handle.emit("matrix://presence", &payload) {
+                        log::error!("Failed to emit presence event: {}", e);
+                    }
+                }
+            },
+        );
+// Verification request handler (to-device)
+        let handle_clone = app_handle.clone();
+        client.add_event_handler(
+            move |event: matrix_sdk::ruma::events::key::verification::request::ToDeviceKeyVerificationRequestEvent| {
+                let handle = handle_clone.clone();
+                async move {
+                    let payload = VerificationRequestReceived {
+                        user_id: event.sender.to_string(),
+                        flow_id: event.content.transaction_id.to_string(),
+                        timestamp: std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis() as i64,
+                    };
+                    if let Err(e) = handle.emit("matrix://verification-request-received", &payload) {
+                        log::error!("Failed to emit verification request event: {}", e);
+                    }
+                }
+            },
+        );
+
+        // Verification start handler (to-device)
+        let handle_clone = app_handle.clone();
+        client.add_event_handler(
+            move |event: matrix_sdk::ruma::events::key::verification::start::ToDeviceKeyVerificationStartEvent| {
+                let handle = handle_clone.clone();
+                async move {
+                    let payload = VerificationRequestReceived {
+                        user_id: event.sender.to_string(),
+                        flow_id: event.content.transaction_id.to_string(),
+                        timestamp: std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis() as i64,
+                    };
+                    if let Err(e) = handle.emit("matrix://verification-request-received", &payload) {
+                        log::error!("Failed to emit verification start event: {}", e);
+                    }
+                }
+            },
+        );
+
+        // Room encryption state change handler
+        let handle_clone = app_handle.clone();
+        client.add_event_handler(
+            move |_event: matrix_sdk::ruma::events::room::encryption::SyncRoomEncryptionEvent, room: Room| {
+                let handle = handle_clone.clone();
+                async move {
+                    let payload = RoomEncryptionChanged {
+                        room_id: room.room_id().to_string(),
+                        is_encrypted: true,
+                    };
+                    if let Err(e) = handle.emit("matrix://room-encryption-changed", &payload) {
+                        log::error!("Failed to emit room encryption changed event: {}", e);
+                    }
+                }
+            },
+        );
+
+        let app_handle_sync = app_handle.clone();
         tokio::spawn(async move {
             loop {
                 match client.sync_once(settings.clone()).await {
@@ -363,6 +549,37 @@ let app_handle_sync = app_handle.clone();
             let unread = room.unread_notification_counts();
             let member_count = room.joined_members_count();
 
+            // Fetch last message from room's latest event
+            let (last_message, last_message_timestamp) = {
+                use matrix_sdk::ruma::api::client::message::get_message_events::v3::Request;
+                use matrix_sdk::ruma::api::Direction;
+
+                let mut last_msg = None;
+                let mut last_ts = None;
+
+                let mut request = Request::new(room.room_id().to_owned(), Direction::Backward);
+                request.limit = UInt::from(5u32);
+
+                if let Ok(response) = self.client.send(request).await {
+                    for raw_event in &response.chunk {
+                        if let Ok(event) = raw_event.deserialize() {
+                            if let Some(msg) = timeline_message_from_any_event(&event) {
+                                let preview = if msg.body.len() > 100 {
+                                    format!("{}...", &msg.body[..97])
+                                } else {
+                                    msg.body.clone()
+                                };
+                                last_msg = Some(preview);
+                                last_ts = Some(msg.timestamp);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                (last_msg, last_ts)
+            };
+
             summaries.push(RoomSummary {
                 room_id: room.room_id().to_string(),
                 name,
@@ -372,20 +589,24 @@ let app_handle_sync = app_handle.clone();
                 is_encrypted,
                 unread_count: unread.notification_count,
                 highlight_count: unread.highlight_count,
-                last_message: None,
-                last_message_timestamp: None,
+                last_message,
+                last_message_timestamp,
                 member_count,
             });
         }
 
+        // Sort by last_message_timestamp (most recent first), then by unread count, then by name
         summaries.sort_by(|a, b| {
-            b.unread_count
-                .cmp(&a.unread_count)
+            b.last_message_timestamp
+                .unwrap_or(0)
+                .cmp(&a.last_message_timestamp.unwrap_or(0))
+                .then_with(|| b.unread_count.cmp(&a.unread_count))
                 .then_with(|| a.name.cmp(&b.name))
         });
 
         Ok(summaries)
     }
+    
 
     /// Get the joined room or return an error
     fn get_joined_room(&self, room_id: &RoomId) -> Result<Room, AppError> {
@@ -420,13 +641,45 @@ let app_handle_sync = app_handle.clone();
             .map_err(|e| AppError::Matrix(e.to_string()))?;
 
         let mut messages = Vec::new();
+        let mut reaction_map: HashMap<String, Vec<(String, String)>> = HashMap::new(); // target_event_id -> [(emoji, sender)]
+
         for raw_event in &response.chunk {
             if let Ok(event) = raw_event.deserialize() {
-                if let Some(msg) = timeline_message_from_any_event(&event) {
-                    messages.push(msg);
+                match &event {
+                    AnyTimelineEvent::MessageLike(AnyMessageLikeEvent::Reaction(
+                        MessageLikeEvent::Original(reaction),
+                    )) => {
+                        let target = reaction.content.relates_to.event_id.to_string();
+                        let emoji = reaction.content.relates_to.key.clone();
+                        let sender = reaction.sender.to_string();
+                        reaction_map
+                            .entry(target)
+                            .or_default()
+                            .push((emoji, sender));
+                    }
+                    _ => {
+                        if let Some(msg) = timeline_message_from_any_event(&event) {
+                            messages.push(msg);
+                        }
+                    }
                 }
             }
         }
+
+        // Attach aggregated reactions to messages
+        for msg in &mut messages {
+            if let Some(raw_reactions) = reaction_map.remove(&msg.id) {
+                let mut emoji_map: HashMap<String, Vec<String>> = HashMap::new();
+                for (emoji, sender) in raw_reactions {
+                    emoji_map.entry(emoji).or_default().push(sender);
+                }
+                msg.reactions = emoji_map
+                    .into_iter()
+                    .map(|(emoji, senders)| Reaction { emoji, senders })
+                    .collect();
+            }
+        }
+
         messages.reverse();
 
 
@@ -690,6 +943,225 @@ let app_handle_sync = app_handle.clone();
         }
     }
 
+
+    /// Create a new room
+    pub async fn create_room(
+        &self,
+        name: Option<String>,
+        topic: Option<String>,
+        is_direct: bool,
+        invite_user_ids: Vec<String>,
+        is_encrypted: bool,
+    ) -> Result<String, AppError> {
+        use matrix_sdk::ruma::api::client::room::create_room::v3::Request as CreateRoomRequest;
+        use matrix_sdk::ruma::api::client::room::create_room::v3::RoomPreset;
+        use matrix_sdk::ruma::events::room::encryption::RoomEncryptionEventContent;
+        use matrix_sdk::ruma::events::InitialStateEvent;
+
+        let mut request = CreateRoomRequest::new();
+        request.name = name;
+        if let Some(ref t) = topic {
+            request.topic = Some(t.clone());
+        }
+        request.is_direct = is_direct;
+
+        if is_direct {
+            request.preset = Some(RoomPreset::TrustedPrivateChat);
+        } else {
+            request.preset = Some(RoomPreset::PrivateChat);
+        }
+
+        // Parse invite user IDs
+        let mut invite_ids = Vec::new();
+        for uid_str in &invite_user_ids {
+            let uid: OwnedUserId = uid_str
+                .as_str()
+                .try_into()
+                .map_err(|_| AppError::InvalidInput(format!("Invalid user ID: {}", uid_str)))?;
+            invite_ids.push(uid);
+        }
+        request.invite = invite_ids;
+
+        if is_encrypted {
+            let encryption_content = RoomEncryptionEventContent::with_recommended_defaults();
+            let raw = serde_json::to_value(&InitialStateEvent {
+                content: encryption_content,
+                state_key: Default::default(),
+            })
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+            let raw_event = matrix_sdk::ruma::serde::Raw::from_json(
+                serde_json::value::to_raw_value(&raw)
+                    .map_err(|e| AppError::Internal(e.to_string()))?,
+            );
+            request.initial_state = vec![raw_event];
+        }
+
+        let response = self
+            .client
+            .send(request)
+            .await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+        Ok(response.room_id.to_string())
+    }
+
+    /// Join a room by ID or alias
+    pub async fn join_room(&self, room_id_or_alias: &str) -> Result<String, AppError> {
+        if room_id_or_alias.is_empty() {
+            return Err(AppError::InvalidInput("Room ID or alias is required".into()));
+        }
+
+        use matrix_sdk::ruma::OwnedRoomOrAliasId;
+        let room_or_alias: OwnedRoomOrAliasId = room_id_or_alias
+            .try_into()
+            .map_err(|_| AppError::InvalidInput("Invalid room ID or alias format".into()))?;
+
+        let response = self
+            .client
+            .join_room_by_id_or_alias(room_or_alias.as_ref(), &[])
+            .await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+        Ok(response.room_id().to_string())
+    }
+
+    /// Leave a room
+    pub async fn leave_room(&self, room_id: &str) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        room.leave()
+            .await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Invite a user to a room
+    pub async fn invite_to_room(&self, room_id: &str, user_id: &str) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let user_id: OwnedUserId = user_id
+            .try_into()
+            .map_err(|_| AppError::InvalidInput("Invalid user ID format".into()))?;
+        let room = self.get_joined_room(&room_id)?;
+        room.invite_user_by_id(&user_id)
+            .await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Search public rooms
+    pub async fn search_public_rooms(
+        &self,
+        query: Option<String>,
+        limit: Option<u32>,
+    ) -> Result<Vec<PublicRoomInfo>, AppError> {
+        use matrix_sdk::ruma::api::client::directory::get_public_rooms_filtered::v3::Request;
+        use matrix_sdk::ruma::directory::Filter;
+
+        let mut filter = Filter::new();
+        if let Some(ref q) = query {
+            filter.generic_search_term = Some(q.clone());
+        }
+
+        let mut request = Request::new();
+        request.filter = filter;
+        request.limit = Some(UInt::from(limit.unwrap_or(20).min(50)));
+
+        let response = self
+            .client
+            .send(request)
+            .await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+        let rooms: Vec<PublicRoomInfo> = response
+            .chunk
+            .iter()
+            .map(|r| PublicRoomInfo {
+                room_id: r.room_id.to_string(),
+                name: r.name.as_ref().map(|n| n.to_string()),
+                topic: r.topic.as_ref().map(|t| t.to_string()),
+                member_count: r.num_joined_members.into(),
+                avatar_url: r.avatar_url.as_ref().map(|u| u.to_string()),
+                alias: r.canonical_alias.as_ref().map(|a| a.to_string()),
+                world_readable: r.world_readable,
+                guest_can_join: r.guest_can_join,
+            })
+            .collect();
+
+        Ok(rooms)
+    }
+
+    /// Get detailed room info
+    pub async fn get_room_info(&self, room_id: &str) -> Result<RoomDetails, AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self.get_joined_room(&room_id)?;
+
+        let name = room.display_name().await.ok().map(|n| n.to_string());
+        let topic = room.topic().map(|t| t.to_string());
+        let is_encrypted = room.is_encrypted().await.unwrap_or(false);
+        let is_direct = room.is_direct().await.unwrap_or(false);
+        let member_count = room.joined_members_count();
+
+        let members = self.get_room_members(&room_id.to_string()).await?;
+
+        Ok(RoomDetails {
+            room_id: room_id.to_string(),
+            name,
+            topic,
+            member_count,
+            is_encrypted,
+            is_direct,
+            members,
+        })
+    }
+
+    /// Get pending room invites
+    pub async fn get_invited_rooms(&self) -> Result<Vec<InvitedRoomSummary>, AppError> {
+        let rooms = self.client.invited_rooms();
+        let mut summaries = Vec::new();
+
+        for room in rooms {
+            let name = room.display_name().await.ok().map(|n| n.to_string());
+            // Try to get inviter from room details
+            let inviter = room
+                .invite_details()
+                .await
+                .ok()
+                .and_then(|d| d.inviter.map(|m| m.user_id().to_string()));
+
+            summaries.push(InvitedRoomSummary {
+                room_id: room.room_id().to_string(),
+                name,
+                inviter,
+            });
+        }
+
+        Ok(summaries)
+    }
+
+    /// Accept a room invite
+    pub async fn accept_invite(&self, room_id: &str) -> Result<String, AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let response = self
+            .client
+            .join_room_by_id(&room_id)
+            .await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(response.room_id().to_string())
+    }
+
+    /// Reject a room invite
+    pub async fn reject_invite(&self, room_id: &str) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let room = self
+            .client
+            .get_room(&room_id)
+            .ok_or_else(|| AppError::RoomNotFound(room_id.to_string()))?;
+        room.leave()
+            .await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        Ok(())
+    }
+
     /// Logout and cleanup
     pub async fn logout(&self) -> Result<(), AppError> {
         self.client
@@ -699,6 +1171,40 @@ let app_handle_sync = app_handle.clone();
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(())
     }
+    /// Resolve an mxc:// URL to an HTTP thumbnail URL
+    pub fn resolve_mxc_url(&self, mxc_url: &str, width: u32, height: u32) -> Result<String, AppError> {
+        // mxc://server_name/media_id -> /_matrix/media/v3/thumbnail/server_name/media_id
+        if !mxc_url.starts_with("mxc://") {
+            return Err(AppError::InvalidInput("Not an mxc:// URL".into()));
+        }
+        let path = &mxc_url[6..]; // strip "mxc://"
+        let homeserver = self.client.homeserver().to_string();
+        let homeserver = homeserver.trim_end_matches('/');
+        Ok(format!(
+            "{}/_matrix/media/v3/thumbnail/{}?width={}&height={}&method=crop",
+            homeserver, path, width, height
+        ))
+    }
+
+    /// Get a user's avatar URL (resolved to HTTP)
+    pub async fn get_user_avatar(&self, user_id: &str) -> Result<Option<String>, AppError> {
+        let parsed_user_id: OwnedUserId = user_id
+            .try_into()
+            .map_err(|_| AppError::InvalidInput("Invalid user ID".into()))?;
+
+        let request = matrix_sdk::ruma::api::client::profile::get_profile::v3::Request::new(parsed_user_id);
+        let response = self.client.send(request).await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+        match response.avatar_url {
+            Some(mxc_url) => {
+                let resolved = self.resolve_mxc_url(&mxc_url.to_string(), 96, 96)?;
+                Ok(Some(resolved))
+            }
+            None => Ok(None),
+        }
+    }
+
 
     pub fn user_id(&self) -> &OwnedUserId {
         &self.user_id
@@ -729,9 +1235,10 @@ fn timeline_message_from_sync_event(event: &OriginalSyncRoomMessageEvent) -> Tim
         timestamp: event.origin_server_ts.0.into(),
         is_edited,
         reply_to,
-        reactions: HashMap::new(),
+        reactions: Vec::new(),
         msg_type,
         replaces,
+        avatar_url: None,
     }
 }
 
@@ -766,9 +1273,10 @@ fn timeline_message_from_any_event(event: &AnyTimelineEvent) -> Option<TimelineM
                     timestamp: original.origin_server_ts.0.into(),
                     is_edited,
                     reply_to,
-                    reactions: HashMap::new(),
+                    reactions: Vec::new(),
                     msg_type,
                     replaces,
+                    avatar_url: None,
                 })
             }
             _ => None,

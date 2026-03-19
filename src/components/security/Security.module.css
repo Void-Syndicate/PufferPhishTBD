@@ -1,0 +1,513 @@
+﻿/* ==========================================================================
+   Security.module.css - PufferChat Security Components
+   AOL Retro Aesthetic: beveled 3D borders, steel gray, AOL blue (#004B87)
+   ========================================================================== */
+
+/* ---------- Overlay / Backdrop ---------- */
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.lockBackdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, #000033 0%, #000066 40%, #003399 70%, #0066CC 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+/* ---------- Dialog Body ---------- */
+
+.dialogBody {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.description {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: var(--aol-black);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* ---------- Sections ---------- */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sectionTitle {
+  font-family: var(--font-system);
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--aol-blue);
+  margin: 0;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--win-border-shadow);
+}
+
+/* ---------- Status Box ---------- */
+
+.statusBox {
+  background: var(--aol-white);
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.statusRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+}
+
+.statusGood {
+  color: #006600;
+  font-weight: bold;
+}
+
+.statusWarn {
+  color: #CC6600;
+  font-weight: bold;
+}
+
+/* ---------- Tool Grid (EncryptionSetupPanel) ---------- */
+
+.toolGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.toolCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  cursor: pointer;
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+}
+
+.toolCard:hover {
+  background: var(--aol-blue);
+  color: var(--aol-white);
+}
+
+.toolCard:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.toolIcon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.toolLabel {
+  font-weight: bold;
+  font-size: 10px;
+}
+
+/* ---------- Tab Bar ---------- */
+
+.tabBar {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--win-border-dark);
+}
+
+.tab {
+  flex: 1;
+  padding: 4px 8px;
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  font-weight: bold;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  border-bottom: none;
+  cursor: pointer;
+  color: var(--win-border-shadow);
+}
+
+.tab:hover {
+  background: #e0e0e0;
+}
+
+.tabActive {
+  background: var(--aol-white);
+  color: var(--aol-black);
+  border-bottom: 2px solid var(--aol-white);
+  margin-bottom: -2px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Fields ---------- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fieldLabel {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: var(--aol-black);
+  font-weight: bold;
+}
+
+/* ---------- Button Row ---------- */
+
+.buttonRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--win-border-shadow);
+}
+
+/* ---------- Error / Success ---------- */
+
+.error {
+  color: #CC0000;
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 4px 8px;
+  background: #FFF0F0;
+  border: 1px solid #CC0000;
+}
+
+.success {
+  color: #006600;
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 4px 8px;
+  background: #F0FFF0;
+  border: 1px solid #006600;
+}
+
+/* ---------- Loading ---------- */
+
+.loading {
+  text-align: center;
+  padding: 16px;
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: var(--win-border-shadow);
+}
+
+/* ---------- Device List (DeviceManager) ---------- */
+
+.deviceList {
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  background: var(--aol-white);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.deviceItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--win-border-shadow);
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+}
+
+.deviceItem:last-child {
+  border-bottom: none;
+}
+
+.deviceCurrent {
+  background: #EBF5FF;
+}
+
+.deviceIcon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.deviceInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.editRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.deviceName {
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.currentBadge {
+  font-weight: normal;
+  color: var(--aol-blue);
+  font-size: 10px;
+  margin-left: 4px;
+}
+
+.deviceId {
+  font-size: 9px;
+  color: var(--win-border-shadow);
+  font-family: monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deviceMeta {
+  font-size: 9px;
+  color: var(--win-border-shadow);
+}
+
+.deviceStatus {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.verified {
+  color: #006600;
+}
+
+.unverified {
+  color: #CC6600;
+}
+
+.deviceActions {
+  display: flex;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+/* ---------- Verification Flow (DeviceVerificationDialog) ---------- */
+
+.verifyHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.verifyIcon {
+  font-size: 32px;
+  flex-shrink: 0;
+}
+
+.verifyTitle {
+  font-family: var(--font-system);
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--aol-black);
+}
+
+.verifySubtitle {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: var(--win-border-shadow);
+  margin-top: 2px;
+}
+
+/* ---------- Emoji Grid (SAS Verification) ---------- */
+
+.emojiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 10px;
+  background: var(--aol-white);
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.emojiItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.emojiSymbol {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.emojiDesc {
+  font-family: var(--font-system);
+  font-size: 9px;
+  color: var(--win-border-shadow);
+  text-align: center;
+}
+
+/* ---------- Waiting Spinner ---------- */
+
+.waitingSpinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: var(--win-border-shadow);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--win-border-shadow);
+  border-top-color: var(--aol-blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Success Message ---------- */
+
+.successMessage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: #F0FFF0;
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: #006600;
+}
+
+.successIcon {
+  font-size: 20px;
+}
+
+/* ---------- Recovery Key Box (KeyBackupDialog) ---------- */
+
+.recoveryKeyBox {
+  background: #FFFFF0;
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recoveryKeyLabel {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  font-weight: bold;
+  color: #CC6600;
+}
+
+.recoveryKeyValue {
+  background: var(--aol-white);
+  border: 1px solid var(--win-border-dark);
+  padding: 6px;
+  font-family: monospace;
+  font-size: 11px;
+  word-break: break-all;
+  user-select: all;
+}
+
+/* ---------- Export / Import (KeyExportImportDialog) ---------- */
+
+.exportDataBox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.exportTextarea {
+  width: 100%;
+  font-family: monospace;
+  font-size: 10px;
+  padding: 6px;
+  background: var(--aol-white);
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  resize: vertical;
+  box-sizing: border-box;
+  color: var(--aol-black);
+}
+
+.exportTextarea:focus {
+  outline: 1px dotted var(--aol-blue);
+}
+
+/* ---------- Lock Screen ---------- */
+
+.lockContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 12px;
+  text-align: center;
+}
+
+.lockIcon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.lockTitle {
+  font-family: var(--font-system);
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--aol-blue);
+  margin: 0;
+}
+
+.lockDescription {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: var(--win-border-shadow);
+  margin: 0;
+}

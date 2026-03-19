@@ -269,6 +269,39 @@
 
 ---
 
+### Phase 2.5 — Functional Expansion (Weeks 5-7)
+**Goal:** Every visible UI element is functional. No dead buttons. Fix data mismatches.
+
+**Status:** In Progress
+
+**Tasks:**
+1. ✅ **[CRITICAL] Fix reaction data shape** — Backend HashMap<String, Vec<String>> → Frontend {emoji, senders}[] alignment
+2. **Room member list panel** — Wire `get_room_members` to collapsible sidebar/panel in chat view
+3. **Room creation dialog** — AOL "Create a Room" style dialog, backend `create_room` command
+4. **Room join/leave/invite** — Backend commands + UI flows (join by alias/ID, leave confirmation, invite dialog)
+5. **Avatar resolution** — Resolve mxc:// URLs to HTTP for rooms + users, display in buddy list + message bubbles
+6. **Room header expansion** — Show topic, member count, encryption badge, clickable for room settings
+7. **Menu bar dropdowns** — File (Settings, Sign Off), Edit (Preferences), People (Member List, Invite), Rooms (Create, Join, Directory), Help (About)
+8. **Toolbar buttons** — Wire Read (unread rooms), Write (compose to user), Rooms (room browser), People (member list)
+9. **Font toolbar** — Markdown wrapping for bold/italic/underline, font color picker, font size selector
+10. **Presence tracking** — Parse presence events from sync, display online/away/offline indicators in buddy list
+11. **Last message preview** — Populate last message + timestamp in room summaries for buddy list display + sort
+12. **Read receipt display** — Track per-user read position, show read indicators under messages
+13. **Room directory browsing** — Public room search dialog with AOL Keyword aesthetic
+
+**Deliverables:**
+- All menu bar items functional with dropdown menus
+- All toolbar buttons wired to panels/dialogs
+- Room CRUD (create, join, leave, invite) working
+- Avatars displayed throughout UI
+- Presence indicators live in buddy list
+- Font formatting toolbar functional
+- Read receipts visible in chat
+
+**Exit Criteria:** Zero dead buttons. Every clickable element performs an action or opens a dialog.
+
+---
+
 ### Phase 3 — Encryption & Security (Weeks 8-10)
 **Goal:** Full E2EE with device verification and key management
 

@@ -37,6 +37,8 @@ dirs = "6"
 zeroize = { version = "1", features = ["derive"] }
 getrandom = "0.2"
 hex = "0.4"
+argon2 = "0.5"
+password-hash = "0.5"
 url = "2"
 
 # Force bundled SQLite (avoids needing system sqlite3.lib)

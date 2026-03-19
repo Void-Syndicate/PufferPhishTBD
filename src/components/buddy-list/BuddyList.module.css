@@ -81,9 +81,9 @@
 /* Room Item */
 .roomItem {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
-  padding: 2px 8px;
+  padding: 3px 8px;
   cursor: pointer;
   font-size: var(--font-size-base);
 }
@@ -93,7 +93,9 @@
   color: var(--aol-white);
 }
 
-.roomItem:hover .roomName {
+.roomItem:hover .roomName,
+.roomItem:hover .previewText,
+.roomItem:hover .previewTime {
   color: var(--aol-white);
 }
 
@@ -106,7 +108,9 @@
   color: var(--aol-white);
 }
 
-.selected .roomName {
+.selected .roomName,
+.selected .previewText,
+.selected .previewTime {
   color: var(--aol-white);
 }
 
@@ -115,6 +119,20 @@
   width: 16px;
   text-align: center;
   flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.roomContent {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.roomTopRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .roomName {
@@ -127,6 +145,13 @@
 
 .unread {
   font-weight: bold;
+}
+
+.roomIcons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .lockIcon {
@@ -142,4 +167,60 @@
   padding: 0 4px;
   border-radius: 2px;
   flex-shrink: 0;
+}
+
+/* Last message preview */
+.previewRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 1px;
+}
+
+.previewText {
+  flex: 1;
+  font-size: 9px;
+  color: var(--win-border-shadow);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-system);
+}
+
+.previewTime {
+  font-size: 9px;
+  color: var(--win-border-shadow);
+  flex-shrink: 0;
+  font-family: var(--font-system);
+}
+
+.headerActions {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+}
+
+.headerBtn {
+  width: 18px;
+  height: 16px;
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.4);
+  color: var(--aol-white);
+  font-family: var(--font-system);
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+
+.headerBtn:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+.headerBtn:active {
+  background: rgba(0,0,0,0.1);
 }

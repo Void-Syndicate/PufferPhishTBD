@@ -1,4 +1,4 @@
-﻿.bubble {
+.bubble {
   padding: 2px 8px;
   font-family: var(--font-chat);
   font-size: var(--font-size-chat);
@@ -27,11 +27,27 @@
 }
 
 .senderSelf {
+  font-weight: bold;
+  font-size: 11px;
   color: var(--chat-sent);
 }
 
 .senderOther {
+  font-weight: bold;
+  font-size: 11px;
   color: var(--chat-received);
+}
+
+.verifiedBadge {
+  font-size: 9px;
+  font-weight: bold;
+  color: #228B22;
+  background: #E8F5E8;
+  border: 1px solid #228B22;
+  border-radius: 2px;
+  padding: 0 3px;
+  line-height: 1.2;
+  font-family: var(--font-system);
 }
 
 .timestamp {
@@ -86,6 +102,14 @@
   background: #D0D0D0;
 }
 
+.readReceipts {
+  font-size: 9px;
+  color: var(--win-border-shadow);
+  margin-top: 1px;
+  font-family: var(--font-system);
+  font-style: italic;
+}
+
 .contextMenu {
   position: fixed;
   background: var(--win-bg);
@@ -118,4 +142,15 @@
   height: 1px;
   background: var(--win-border-shadow);
   margin: 2px 0;
+}
+
+.messageRow {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.messageContent {
+  flex: 1;
+  min-width: 0;
 }

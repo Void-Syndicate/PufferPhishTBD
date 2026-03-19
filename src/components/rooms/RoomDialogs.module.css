@@ -1,0 +1,158 @@
+/* Shared Room Dialog Styles */
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialogBody {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fieldLabel {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  color: var(--aol-black);
+  font-weight: bold;
+}
+
+.fieldRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkboxLabel {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.buttonRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--win-border-shadow);
+}
+
+.error {
+  color: #CC0000;
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 2px 4px;
+  background: #FFF0F0;
+  border: 1px solid #CC0000;
+}
+
+.resultsList {
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  background: var(--aol-white);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.resultItem {
+  padding: 3px 6px;
+  cursor: pointer;
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.resultItem:hover {
+  background: var(--aol-blue);
+  color: var(--aol-white);
+}
+
+.resultItem:hover .resultMeta {
+  color: var(--aol-white);
+}
+
+.resultName {
+  font-weight: bold;
+}
+
+.resultMeta {
+  font-size: 10px;
+  color: var(--win-border-shadow);
+}
+
+.resultTopic {
+  font-size: 10px;
+  color: var(--win-border-shadow);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 250px;
+}
+
+.emptyResults {
+  padding: 16px;
+  text-align: center;
+  color: var(--win-border-shadow);
+  font-size: 10px;
+}
+
+.inviteItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--win-border-shadow);
+}
+
+.inviteInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.inviteName {
+  font-family: var(--font-system);
+  font-size: var(--font-size-base);
+  font-weight: bold;
+}
+
+.inviteFrom {
+  font-family: var(--font-system);
+  font-size: 10px;
+  color: var(--win-border-shadow);
+}
+
+.inviteActions {
+  display: flex;
+  gap: 4px;
+}
+
+.searchRow {
+  display: flex;
+  gap: 4px;
+}
+
+.searchRow > :first-child {
+  flex: 1;
+}

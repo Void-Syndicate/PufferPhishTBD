@@ -1,4 +1,4 @@
-use thiserror::Error;
+﻿use thiserror::Error;
 
 /// Application-level errors
 #[derive(Error, Debug)]
@@ -26,6 +26,18 @@ pub enum AppError {
 
     #[error("Event not found: {0}")]
     EventNotFound(String),
+
+    #[error("Encryption error: {0}")]
+    Encryption(String),
+
+    #[error("Verification error: {0}")]
+    Verification(String),
+
+    #[error("Key backup error: {0}")]
+    KeyBackup(String),
+
+    #[error("App is locked")]
+    Locked,
 }
 
 // Convert to string for Tauri IPC (Tauri requires serializable errors)
@@ -40,7 +52,7 @@ impl serde::Serialize for AppError {
 
 impl From<matrix_sdk::Error> for AppError {
     fn from(err: matrix_sdk::Error) -> Self {
-        // Sanitize error — never leak tokens or keys in error messages
+        // Sanitize error - never leak tokens or keys in error messages
         let msg = err.to_string();
         AppError::Matrix(sanitize_error(&msg))
     }
@@ -73,7 +85,7 @@ fn regex_lite_replace(msg: &str) -> String {
             consecutive_alnum += 1;
         } else {
             if consecutive_alnum > 40 {
-                // Likely a token — redact
+                // Likely a token - redact
                 result.push_str("[REDACTED]");
             } else {
                 result.push_str(&msg[start..i]);

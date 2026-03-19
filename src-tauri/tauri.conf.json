@@ -34,8 +34,6 @@
                             ]
                },
     "plugins":  {
-                    "notification":  {
-                                         "enabled":  true
-                                     }
+                    "notification":  null
                 }
 }

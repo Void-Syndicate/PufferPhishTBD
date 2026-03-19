@@ -1,0 +1,23 @@
+﻿.memberList {
+  width: 160px;
+  min-width: 140px;
+  background: var(--win-bg);
+  border-left: 2px solid var(--win-border-shadow);
+  overflow-y: auto;
+  font-size: 10px;
+}
+
+.header {
+  padding: 4px 8px;
+  font-weight: bold;
+  font-size: 11px;
+  background: var(--aol-blue);
+  color: var(--aol-white);
+  font-family: var(--font-system);
+}
+
+.placeholder {
+  padding: 8px;
+  color: var(--win-border-shadow);
+  font-style: italic;
+}

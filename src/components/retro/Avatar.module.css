@@ -1,0 +1,65 @@
+/* AOL-style Avatar with presence indicator */
+
+.avatarWrapper {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #C0C0C0;
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  font-family: var(--font-system);
+  font-weight: bold;
+  color: var(--aol-blue-dark);
+  text-transform: uppercase;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.small {
+  width: 18px;
+  height: 18px;
+  font-size: 9px;
+  border-width: 1px;
+}
+
+.medium {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.large {
+  width: 48px;
+  height: 48px;
+  font-size: 20px;
+}
+
+.square { border-radius: 0; }
+.circle { border-radius: 50%; }
+
+.presenceDot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  border-radius: 50%;
+  border: 1px solid var(--win-bg);
+}
+
+.dotSmall { width: 6px; height: 6px; }
+.dotMedium { width: 8px; height: 8px; }
+.dotLarge { width: 10px; height: 10px; }
+
+.online { background: #00CC00; }
+.unavailable { background: #CCCC00; }
+.offline { background: #999999; }

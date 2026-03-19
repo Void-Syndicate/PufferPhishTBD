@@ -1,6 +1,19 @@
-﻿.chatView {
+.chatView {
   display: flex;
   flex-direction: column;
   height: 100%;
   background: var(--aol-white);
+}
+
+.chatBody {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.chatMain {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
 }

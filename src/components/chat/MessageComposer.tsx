@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+﻿import { useState, useRef, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMessagesStore } from "../../stores/messages";
 import { useTypingStore } from "../../stores/typing";
@@ -9,9 +9,41 @@ interface MessageComposerProps {
   roomId: string;
 }
 
+const COLORS = ["#CC0000", "#0000CC", "#008800", "#FF6600", "#9900CC", "#CC6600", "#000000"];
+const SIZES: { label: string; prefix: string; suffix: string }[] = [
+  { label: "Small", prefix: "<font size=\"1\">", suffix: "</font>" },
+  { label: "Medium", prefix: "", suffix: "" },
+  { label: "Large", prefix: "## ", suffix: "" },
+];
+
+function wrapSelection(
+  textarea: HTMLTextAreaElement,
+  text: string,
+  setText: (v: string) => void,
+  before: string,
+  after: string,
+) {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selected = text.slice(start, end);
+  const newText = text.slice(0, start) + before + selected + after + text.slice(end);
+  setText(newText);
+  // Restore cursor after the wrapped text
+  requestAnimationFrame(() => {
+    textarea.focus();
+    if (selected.length > 0) {
+      textarea.setSelectionRange(start + before.length, end + before.length);
+    } else {
+      textarea.setSelectionRange(start + before.length, start + before.length);
+    }
+  });
+}
+
 export default function MessageComposer({ roomId }: MessageComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showSizePicker, setShowSizePicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout>>();
 
@@ -67,6 +99,14 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
     }
   };
 
+  const applyFormat = (before: string, after: string) => {
+    if (textareaRef.current) {
+      wrapSelection(textareaRef.current, text, setText, before, after);
+    }
+    setShowColorPicker(false);
+    setShowSizePicker(false);
+  };
+
   // Pre-fill when editing
   useEffect(() => {
     if (editingMessage) {
@@ -80,6 +120,15 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
     textareaRef.current?.focus();
   }, [roomId]);
 
+  // Close pickers on outside click
+  useEffect(() => {
+    const handler = () => { setShowColorPicker(false); setShowSizePicker(false); };
+    if (showColorPicker || showSizePicker) {
+      document.addEventListener("mousedown", handler);
+      return () => document.removeEventListener("mousedown", handler);
+    }
+  }, [showColorPicker, showSizePicker]);
+
   const typingText = filteredTyping.length === 0
     ? ""
     : filteredTyping.length === 1
@@ -88,27 +137,62 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
 
   return (
     <div className={styles.composer}>
-      {/* Font toolbar placeholder */}
       <div className={styles.fontToolbar}>
-        <button className={styles.fontBtn} title="Bold"><b>B</b></button>
-        <button className={styles.fontBtn} title="Italic"><i>I</i></button>
-        <button className={styles.fontBtn} title="Underline"><u>U</u></button>
-        <button className={styles.fontBtn} title="Font Color">??</button>
-        <button className={styles.fontBtn} title="Font Size">A?</button>
+        <button className={styles.fontBtn} title="Bold (wrap with **)" onClick={() => applyFormat("**", "**")}><b>B</b></button>
+        <button className={styles.fontBtn} title="Italic (wrap with *)" onClick={() => applyFormat("*", "*")}><i>I</i></button>
+        <button className={styles.fontBtn} title="Underline" onClick={() => applyFormat("<u>", "</u>")}><u>U</u></button>
+        <div className={styles.pickerContainer}>
+          <button
+            className={styles.fontBtn}
+            title="Font Color"
+            onMouseDown={(e) => { e.stopPropagation(); setShowColorPicker((v) => !v); setShowSizePicker(false); }}
+          >{"\uD83C\uDFA8"}</button>
+          {showColorPicker && (
+            <div className={styles.pickerDropdown} onMouseDown={(e) => e.stopPropagation()}>
+              {COLORS.map((color) => (
+                <div
+                  key={color}
+                  className={styles.colorSwatch}
+                  style={{ background: color }}
+                  onClick={() => applyFormat(`<font color="${color}">`, "</font>")}
+                  title={color}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        <div className={styles.pickerContainer}>
+          <button
+            className={styles.fontBtn}
+            title="Font Size"
+            onMouseDown={(e) => { e.stopPropagation(); setShowSizePicker((v) => !v); setShowColorPicker(false); }}
+          >A{"\u2195"}</button>
+          {showSizePicker && (
+            <div className={styles.pickerDropdown} onMouseDown={(e) => e.stopPropagation()}>
+              {SIZES.map((s) => (
+                <div
+                  key={s.label}
+                  className={styles.sizeOption}
+                  onClick={() => applyFormat(s.prefix, s.suffix)}
+                >{s.label}</div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {replyingTo && (
         <div className={styles.replyPreview}>
-          <span>? Replying to <b>{replyingTo.senderName || replyingTo.sender}</b>:</span>
+          <span>{"\u21A9"} Replying to <b>{replyingTo.senderName || replyingTo.sender}</b>:</span>
           <span className={styles.replyText}>{replyingTo.body.slice(0, 100)}</span>
-          <button className={styles.replyCancelBtn} onClick={() => setReplyingTo(roomId, null)}>?</button>
+          <button className={styles.replyCancelBtn} onClick={() => setReplyingTo(roomId, null)}>{"\u2715"}</button>
         </div>
       )}
 
       {editingMessage && (
         <div className={styles.replyPreview}>
-          <span>?? Editing message</span>
-          <button className={styles.replyCancelBtn} onClick={() => { setEditingMessage(roomId, null); setText(""); }}>?</button>
+          <span>{"\u270F\uFE0F"} Editing message</span>
+          <button className={styles.replyCancelBtn} onClick={() => { setEditingMessage(roomId, null); setText(""); }}>{"\u2715"}</button>
         </div>
       )}
 
