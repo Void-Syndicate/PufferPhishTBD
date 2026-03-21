@@ -1,5 +1,27 @@
 # PufferChat Changelog
 
+## [1.1.0] - 2026-03-21
+
+### Phase 9 — Theme Modernization & Polish
+
+#### New Features
+- **AOL 2026 theme** — Modern glassmorphism dark theme replacing the old AOL Dark theme. Deep navy (`#0a0e1a`) background, Inter/JetBrains Mono font stack, glass-morphic surfaces with `rgba` transparency, blue accent glow effects, smooth transitions, and sleek 6px scrollbars. A 2026 reimagination of the AOL aesthetic.
+- **Updated theme engine** — Three-theme system: AOL Classic (original retro), AOL 2026 (modern glass), High Contrast (accessibility). Theme switching via `data-theme` attribute with localStorage persistence and `theme-changed` custom events.
+- **High Contrast theme improvements** — Pure black background, white borders, yellow focus outlines (`3px solid #ffeb3b`), forced font-weight 700 on buttons, all animations/transitions disabled (`animation: none !important; transition: none !important`) for reduced motion.
+
+#### Improvements
+- **LoginScreen accessibility** — Added `role="main"`, `aria-label` on login screen, form, and dialup overlay. Status overlay uses `aria-live="polite"`. Error messages use `role="alert"` with `aria-live="assertive"`.
+- **Backend refinements** — Rust matrix client, crypto, and VoIP modules updated with stability improvements.
+- **Sync module** — Added to matrix backend module exports.
+
+#### Theme Details
+
+| Theme | Style | Background | Font |
+|-------|-------|-----------|------|
+| AOL Classic | Retro 1997 | Steel gray/beveled | System UI |
+| AOL 2026 | Glassmorphism | Deep navy #0a0e1a | Inter + JetBrains Mono |
+| High Contrast | Accessibility | Pure black #000000 | System UI, 1.0625rem |
+
 ## [0.2.0] - 2026-03-18
 
 ### Phase 2 — Core Messaging (Complete)

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { useRoomsStore } from "../../stores/rooms";
 import { RoomEncryptionStatus } from "../../stores/encryption";
 import { useEncryption } from "../../hooks/useEncryption";
@@ -111,14 +111,14 @@ export default function RoomHeader({ roomId, onToggleMembers, showMembers }: Roo
           onClick={() => setShowSettings(true)}
           title="Room settings"
         >
-          âš™ï¸ Settings
+          {"⚙️"} Settings
         </button>
         <button
           className={styles.membersBtn}
           onClick={() => setShowMediaGallery(true)}
           title="Media gallery"
         >
-          ðŸ–¼ï¸ Media
+          {"🖼️"} Media
         </button>
         <button
           className={membersBtnClass}

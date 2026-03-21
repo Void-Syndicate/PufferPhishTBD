@@ -8,6 +8,7 @@ import { useMatrixEvents } from "../../hooks/useMatrixEvents";
 import { useKeyboardShortcut } from "../../components/accessibility";
 import { soundEngine } from "../../audio/SoundEngine";
 import BuddyList from "../buddy-list/BuddyList";
+import { useSpaces } from "../../hooks/useSpaces";
 import ChatView from "../chat/ChatView";
 import CallOverlay from "../calls/CallOverlay";
 import IncomingVerificationDialog from "../security/IncomingVerificationDialog";
@@ -60,6 +61,7 @@ export default function MainShell() {
 
   useMatrixEvents();
   useCall();
+  const { refreshSpaceChildren } = useSpaces();
 
   // App-wide keyboard shortcuts
   useKeyboardShortcut("k", () => setActiveDialog("directory"), { ctrl: true });
@@ -98,6 +100,7 @@ export default function MainShell() {
         }
         if (!cancelled) {
           setRooms(fetchedRooms);
+          refreshSpaceChildren();
         }
       } catch (err) {
         console.error("Failed to initialize sync:", err);

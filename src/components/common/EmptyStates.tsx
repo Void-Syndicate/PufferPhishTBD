@@ -7,7 +7,7 @@ interface EmptyProps {
   action?: { label: string; onClick: () => void };
 }
 
-export function EmptyState({ icon = "ðŸ“­", title, message, action }: EmptyProps) {
+export function EmptyState({ icon = "📭", title, message, action }: EmptyProps) {
   return (
     <div style={{
       display: "flex", flexDirection: "column",
@@ -38,10 +38,10 @@ export function EmptyState({ icon = "ðŸ“­", title, message, action }: Empty
 export function EmptyRoomList({ onCreateRoom }: { onCreateRoom: () => void }) {
   return (
     <EmptyState
-      icon="ðŸ "
+      icon="🏠"
       title="No Rooms Yet"
       message="Join a room or create one to start chatting!"
-      action={{ label: "âž• Create Room", onClick: onCreateRoom }}
+      action={{ label: "➕ Create Room", onClick: onCreateRoom }}
     />
   );
 }
@@ -49,7 +49,7 @@ export function EmptyRoomList({ onCreateRoom }: { onCreateRoom: () => void }) {
 export function EmptyChat() {
   return (
     <EmptyState
-      icon="ðŸ’¬"
+      icon="💬"
       title="Select a Buddy or Room"
       message="Choose someone from your Buddy List or a room to start a conversation."
     />
@@ -59,7 +59,7 @@ export function EmptyChat() {
 export function EmptyMessages() {
   return (
     <EmptyState
-      icon="ðŸ“"
+      icon="📝"
       title="No Messages Yet"
       message="Be the first to say something! Type a message below."
     />
@@ -69,7 +69,7 @@ export function EmptyMessages() {
 export function EmptySearch({ query }: { query: string }) {
   return (
     <EmptyState
-      icon="ðŸ”"
+      icon="🔍"
       title="No Results"
       message={`No results found for "${query}". Try a different search term.`}
     />
@@ -79,7 +79,7 @@ export function EmptySearch({ query }: { query: string }) {
 export function EmptyCallHistory() {
   return (
     <EmptyState
-      icon="ðŸ“ž"
+      icon="📞"
       title="No Call History"
       message="Your voice and video call history will appear here."
     />
@@ -89,7 +89,7 @@ export function EmptyCallHistory() {
 export function EmptyPlugins({ onBrowse }: { onBrowse: () => void }) {
   return (
     <EmptyState
-      icon="ðŸ§©"
+      icon="🧩"
       title="No Plugins Installed"
       message="Extend PufferChat with plugins for extra features."
       action={{ label: "Browse Plugins", onClick: onBrowse }}
@@ -100,7 +100,7 @@ export function EmptyPlugins({ onBrowse }: { onBrowse: () => void }) {
 export function EmptyMembers() {
   return (
     <EmptyState
-      icon="ðŸ‘¥"
+      icon="👥"
       title="No Members"
       message="This room doesn't have any other members yet. Send an invite!"
     />

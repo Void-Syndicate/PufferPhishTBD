@@ -48,6 +48,9 @@ pub async fn matrix_login(
         return Err(AppError::Auth("Password is required".into()));
     }
 
+    // Rate limit login attempts
+    phase8::check_rate_limit()?;
+
     // Strict URL validation
     let parsed_url = url::Url::parse(&homeserver)
         .map_err(|_| AppError::Auth("Invalid homeserver URL".into()))?;
@@ -73,8 +76,26 @@ pub async fn matrix_login(
         return Err(AppError::Auth("Invalid URL scheme".into()));
     }
 
-    let (client, result, access_token) =
-        MatrixClient::login(&homeserver, &username, password).await?;
+    let (client, result, access_token) = match MatrixClient::login(&homeserver, &username, password.clone()).await {
+        Ok(r) => r,
+        Err(e) => {
+            let err_str = format!("{}", e);
+            if err_str.contains("crypto store")
+                || err_str.contains("CryptoStore")
+                || err_str.contains("olm")
+                || err_str.contains("SqliteStore")
+                || err_str.contains("database")
+                || err_str.contains("cipher")
+            {
+                log::warn!("Crypto store error on login, clearing and retrying: {}", e);
+                let _ = crate::matrix::client::clear_crypto_store();
+                let _ = crate::matrix::client::clear_db_passphrase();
+                MatrixClient::login(&homeserver, &username, password).await?
+            } else {
+                return Err(e);
+            }
+        }
+    };
 
     keychain::store_session(
         &result.user_id,
@@ -82,6 +103,33 @@ pub async fn matrix_login(
         &access_token,
         &result.device_id,
     )?;
+
+    // Store access token per-account for multi-account switching
+    let token_key = format!("account_token_{}", &result.user_id);
+    keychain::store_secret(&token_key, &access_token)?;
+
+    // Auto-register this account for multi-account switching
+    let account = phase8::AccountInfo {
+        user_id: result.user_id.clone(),
+        homeserver: homeserver.clone(),
+        display_name: result.display_name.clone(),
+        device_id: result.device_id.clone(),
+        is_active: true,
+        avatar_url: None,
+    };
+    if let Ok(mut accounts) = phase8::list_accounts_impl() {
+        for a in accounts.iter_mut() {
+            a.is_active = false;
+        }
+        if let Some(existing) = accounts.iter_mut().find(|a| a.user_id == result.user_id) {
+            existing.is_active = true;
+            existing.display_name = result.display_name.clone();
+            existing.device_id = result.device_id.clone();
+        } else {
+            accounts.push(account);
+        }
+        let _ = phase8::save_accounts_pub(&accounts);
+    }
 
     let mut client_lock = state.matrix_client.lock().await;
     *client_lock = Some(client);
@@ -128,8 +176,10 @@ pub async fn restore_session(
             Ok(Some(result))
         }
         Err(e) => {
-            log::warn!("Session restore failed, clearing stale creds: {}", e);
+            log::warn!("Session restore failed, clearing stale creds and crypto store: {}", e);
             keychain::clear_session()?;
+            let _ = crate::matrix::client::clear_crypto_store();
+            let _ = crate::matrix::client::clear_db_passphrase();
             Ok(None)
         }
     }
@@ -138,16 +188,39 @@ pub async fn restore_session(
 /// Logout from Matrix
 #[tauri::command]
 pub async fn matrix_logout(state: State<'_, AppState>) -> Result<(), AppError> {
+    let current_user_id = keychain::get_session()?
+        .map(|(uid, _, _, _)| uid);
+
     let mut client_lock = state.matrix_client.lock().await;
 
     if let Some(client) = client_lock.as_ref() {
-        client.logout().await?;
+        if let Err(e) = client.logout().await {
+            log::warn!("Server-side logout failed (continuing anyway): {}", e);
+        }
     }
 
+    *client_lock = None;
     keychain::clear_session()?;
 
-    *client_lock = None;
-    log::info!("Logout completed");
+    if let Err(e) = crate::matrix::client::clear_crypto_store() {
+        log::warn!("Failed to clear crypto store on logout: {}", e);
+    }
+    if let Err(e) = crate::matrix::client::clear_db_passphrase() {
+        log::warn!("Failed to clear db passphrase on logout: {}", e);
+    }
+
+    if let Some(ref uid) = current_user_id {
+        if let Ok(mut accounts) = phase8::list_accounts_impl() {
+            for a in accounts.iter_mut() {
+                if a.user_id == *uid {
+                    a.is_active = false;
+                }
+            }
+            let _ = phase8::save_accounts_pub(&accounts);
+        }
+    }
+
+    log::info!("Logout completed - session and crypto store cleared");
     Ok(())
 }
 
@@ -641,6 +714,21 @@ pub async fn get_user_verification_status(
     crypto::get_user_verification_status(client.inner(), &parsed_user_id).await
 }
 
+/// Verify a user's identity (cross-sign them)
+#[tauri::command]
+pub async fn verify_user_identity(
+    state: State<'_, AppState>,
+    user_id: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    let parsed_user_id: matrix_sdk::ruma::OwnedUserId = user_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid user ID".into()))?;
+    crypto::verify_user_identity(client.inner(), &parsed_user_id).await
+}
+
 /// Enable key backup
 #[tauri::command]
 pub async fn enable_key_backup(
@@ -669,6 +757,16 @@ pub async fn get_key_backup_status(
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     crypto::get_key_backup_status(client.inner()).await
+}
+
+/// Wait for key backup upload to complete
+#[tauri::command]
+pub async fn wait_for_backup_upload(
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    crypto::wait_for_backup_upload(client.inner()).await
 }
 
 /// Setup secret storage (SSSS) and get recovery key
@@ -879,6 +977,20 @@ fn write_max_bytes(max_bytes: u64) -> Result<(), AppError> {
         .map_err(|e| AppError::Internal(format!("Failed to write cache config: {}", e)))?;
     Ok(())
 }
+
+/// Get media thumbnail as bytes
+#[tauri::command]
+pub async fn get_media_thumbnail(
+    state: State<'_, AppState>,
+    mxc_url: String,
+    width: u32,
+    height: u32,
+) -> Result<Vec<u8>, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    media::get_media_thumbnail(client.inner(), &mxc_url, width, height).await
+}
+
 
 /// Get cache size info
 #[tauri::command]
@@ -2314,16 +2426,60 @@ pub async fn add_account(account: phase8::AccountInfo) -> Result<(), AppError> {
     phase8::add_account_impl(account)
 }
 
-/// Remove an account
+/// Remove an account and clean up its data
 #[tauri::command]
 pub async fn remove_account(user_id: String) -> Result<(), AppError> {
+    let token_key = format!("account_token_{}", &user_id);
+    let _ = keychain::delete_secret(&token_key);
+    let _ = crate::matrix::client::clear_crypto_store_for_user(Some(&user_id));
+    let _ = crate::matrix::client::clear_db_passphrase_for_user(Some(&user_id));
     phase8::remove_account_impl(user_id)
 }
 
-/// Switch active account
+/// Switch active account - disconnects current session and connects the new one
 #[tauri::command]
-pub async fn switch_account(user_id: String) -> Result<phase8::AccountInfo, AppError> {
-    phase8::switch_account_impl(user_id)
+pub async fn switch_account(
+    state: State<'_, AppState>,
+    user_id: String,
+) -> Result<phase8::AccountInfo, AppError> {
+    let account = phase8::switch_account_impl(user_id.clone())?;
+
+    {
+        let mut client_lock = state.matrix_client.lock().await;
+        if let Some(ref client) = *client_lock {
+            let _ = client.logout().await;
+        }
+        *client_lock = None;
+    }
+
+    let token_key = format!("account_token_{}", &account.user_id);
+    let access_token = keychain::get_secret(&token_key)?
+        .ok_or_else(|| AppError::Auth(format!(
+            "No stored credentials for {}. Please log in again.", &account.user_id
+        )))?;
+
+    keychain::store_session(
+        &account.user_id,
+        &account.homeserver,
+        &access_token,
+        &account.device_id,
+    )?;
+
+    let client = MatrixClient::restore(
+        &account.homeserver,
+        &access_token,
+        &account.user_id,
+        &account.device_id,
+    ).await.map_err(|e| {
+        log::error!("Failed to restore session for {}: {}", &account.user_id, e);
+        AppError::Auth(format!("Failed to switch to {}: {}", &account.user_id, e))
+    })?;
+
+    let mut client_lock = state.matrix_client.lock().await;
+    *client_lock = Some(client);
+
+    log::info!("Switched to account: {}", &account.user_id);
+    Ok(account)
 }
 
 /// List all accounts
@@ -2332,21 +2488,7 @@ pub async fn list_accounts() -> Result<Vec<phase8::AccountInfo>, AppError> {
     phase8::list_accounts_impl()
 }
 
-/// Get SSO providers for a homeserver
-#[tauri::command]
-pub async fn get_sso_providers(homeserver: String) -> Result<Vec<phase8::SsoProvider>, AppError> {
-    phase8::get_sso_providers_impl(&homeserver).await
-}
 
-/// Get SSO login URL
-#[tauri::command]
-pub async fn get_sso_login_url(
-    homeserver: String,
-    provider_id: String,
-    redirect_url: String,
-) -> Result<phase8::SsoLoginUrl, AppError> {
-    phase8::get_sso_login_url_impl(&homeserver, &provider_id, &redirect_url)
-}
 
 /// Check data integrity
 #[tauri::command]

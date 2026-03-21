@@ -6,7 +6,7 @@
 
 **PufferChat** is a native desktop Matrix client with a retro AOL Instant Messenger aesthetic. Full Element-level functionality wrapped in nostalgic 90s UI — E2EE by default, zero telemetry, plugin system, voice/video calls, and a Buddy List that'll make you feel like it's 1999.
 
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Stack:** Tauri 2.x (Rust) + React 18 + TypeScript + matrix-rust-sdk  
 **Platforms:** Windows 10+, macOS 12+, Linux (Ubuntu 22.04+)  
 **License:** MIT
@@ -89,7 +89,7 @@
 - Running Man and hourglass loading states
 - Away message system with templates
 - AOL-style profile cards
-- **Two themes:** AOL Classic (light) and AOL Dark (CRT phosphor glow)
+- **Three themes:** AOL Classic (light), AOL 2026 (glassmorphism dark), High Contrast
 - High contrast accessibility mode
 
 ### ♿ Accessibility
@@ -344,8 +344,8 @@ Plugins declare permissions in `manifest.json` and run in sandboxed iframes — 
 | Theme | Description |
 |-------|-------------|
 | **AOL Classic** | Default light theme — steel gray, AOL blue (#004B87), beveled borders |
-| **AOL Dark** | Dark mode with deep navy background and CRT phosphor glow effect |
-| **High Contrast** | Accessibility mode with maximum contrast ratios |
+| **AOL 2026** | Modern glassmorphism — deep navy, Inter font, glass surfaces, blue glow |
+| **High Contrast** | Accessibility mode with maximum contrast, disabled animations |
 
 ---
 

@@ -134,13 +134,6 @@ pub struct ReadReceiptEvent {
     pub user_id: String,
     pub event_id: String,
 }
-
-#[derive(Serialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct RoomUpdateEvent {
-    pub room: RoomSummary,
-}
-
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PresenceUpdate {
@@ -246,22 +239,22 @@ fn validate_event_id(event_id: &str) -> Result<OwnedEventId, AppError> {
 
 impl MatrixClient {
     /// Create a new Matrix client and log in with password
+    /// Create a new Matrix client and log in with password.
+    /// Uses a temporary in-memory client for auth, then builds the real
+    /// per-user store client with the actual user_id.
     pub async fn login(
         homeserver: &str,
         username: &str,
         mut password: String,
     ) -> Result<(Self, LoginResult, String), AppError> {
-        let data_dir = get_data_dir();
-        let db_passphrase = get_or_create_db_passphrase()?;
-
-        let client = Client::builder()
+        // Step 1: Auth with a temporary client (no persistent store)
+        let temp_client = Client::builder()
             .homeserver_url(homeserver)
-            .sqlite_store(&data_dir, Some(&db_passphrase))
             .build()
             .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
 
-        let response = client
+        let response = temp_client
             .matrix_auth()
             .login_username(username, &password)
             .initial_device_display_name("PufferChat")
@@ -271,8 +264,10 @@ impl MatrixClient {
         password.zeroize();
 
         let user_id = response.user_id.clone();
+        let access_token = response.access_token.clone();
+        let device_id = response.device_id.clone();
 
-        let display_name = client
+        let display_name = temp_client
             .account()
             .get_display_name()
             .await
@@ -280,18 +275,70 @@ impl MatrixClient {
             .flatten()
             .map(|n| n.to_string());
 
-        let access_token_str = response.access_token.to_string();
-        let device_id_str = response.device_id.to_string();
+        // Step 2: Build the real client with per-user persistent store
+        let uid_str = user_id.to_string();
+        let client = match Self::build_persistent_client(homeserver, &uid_str).await {
+            Ok(c) => c,
+            Err(e) => {
+                // If store cipher fails, clear and retry with fresh store
+                let err_str = format!("{}", e);
+                if err_str.contains("cipher") || err_str.contains("Cipher")
+                    || err_str.contains("crypto") || err_str.contains("database")
+                    || err_str.contains("SqliteStore")
+                {
+                    log::warn!("Store cipher error for {}, clearing and retrying: {}", uid_str, e);
+                    let _ = clear_crypto_store_for_user(Some(&uid_str));
+                    let _ = clear_db_passphrase_for_user(Some(&uid_str));
+                    Self::build_persistent_client(homeserver, &uid_str).await?
+                } else {
+                    return Err(e);
+                }
+            }
+        };
+
+        // Restore the session we just got into the persistent client
+        let parsed_device_id: matrix_sdk::ruma::OwnedDeviceId = device_id.as_str().into();
+        let session = matrix_sdk::authentication::matrix::MatrixSession {
+            meta: SessionMeta {
+                user_id: user_id.clone(),
+                device_id: parsed_device_id,
+            },
+            tokens: matrix_sdk::authentication::matrix::MatrixSessionTokens {
+                access_token: access_token.to_string(),
+                refresh_token: None,
+            },
+        };
+
+        client
+            .matrix_auth()
+            .restore_session(session)
+            .await
+            .map_err(|e| AppError::Auth(format!("Failed to persist session: {}", e)))?;
 
         let result = LoginResult {
-            user_id: user_id.to_string(),
+            user_id: uid_str,
             display_name,
-            device_id: device_id_str.clone(),
+            device_id: device_id.to_string(),
         };
 
         let matrix_client = Self { client, user_id };
 
-        Ok((matrix_client, result, access_token_str))
+        Ok((matrix_client, result, access_token.to_string()))
+    }
+
+    /// Build a persistent client with per-user store directory
+    async fn build_persistent_client(homeserver: &str, user_id: &str) -> Result<Client, AppError> {
+        let data_dir = get_data_dir_for_user(Some(user_id));
+        let db_passphrase = get_or_create_db_passphrase_for_user(Some(user_id))?;
+
+        let client = Client::builder()
+            .homeserver_url(homeserver)
+            .sqlite_store(&data_dir, Some(&db_passphrase))
+            .build()
+            .await
+            .map_err(|e| AppError::Matrix(format!("Failed to create persistent client: {}", e)))?;
+
+        Ok(client)
     }
 
     /// Restore session from stored access token
@@ -301,15 +348,23 @@ impl MatrixClient {
         user_id: &str,
         device_id: &str,
     ) -> Result<Self, AppError> {
-        let data_dir = get_data_dir();
-        let db_passphrase = get_or_create_db_passphrase()?;
-
-        let client = Client::builder()
-            .homeserver_url(homeserver)
-            .sqlite_store(&data_dir, Some(&db_passphrase))
-            .build()
-            .await
-            .map_err(|e| AppError::Matrix(e.to_string()))?;
+        let client = match Self::build_persistent_client(homeserver, user_id).await {
+            Ok(c) => c,
+            Err(e) => {
+                let err_str = format!("{}", e);
+                if err_str.contains("cipher") || err_str.contains("Cipher")
+                    || err_str.contains("crypto") || err_str.contains("database")
+                    || err_str.contains("SqliteStore")
+                {
+                    log::warn!("Store cipher error during restore for {}, clearing and retrying: {}", user_id, e);
+                    let _ = clear_crypto_store_for_user(Some(user_id));
+                    let _ = clear_db_passphrase_for_user(Some(user_id));
+                    Self::build_persistent_client(homeserver, user_id).await?
+                } else {
+                    return Err(e);
+                }
+            }
+        };
 
         let parsed_user_id: OwnedUserId = user_id
             .try_into()
@@ -1798,23 +1853,33 @@ fn extract_media_source_url(source: &MediaSource) -> Option<String> {
 fn extract_media_source_url_opt(source: &MediaSource) -> Option<String> {
     extract_media_source_url(source)
 }
-/// Get the data directory for PufferChat storage
-fn get_data_dir() -> PathBuf {
+
+fn get_data_dir_for_user(user_id: Option<&str>) -> PathBuf {
     let mut dir = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
     dir.push("pufferchat");
     dir.push("matrix-store");
+    if let Some(uid) = user_id {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        uid.hash(&mut hasher);
+        dir.push(format!("{:016x}", hasher.finish()));
+    }
     std::fs::create_dir_all(&dir).ok();
     dir
 }
 
-/// Get or generate a passphrase for SQLite encryption.
-fn get_or_create_db_passphrase() -> Result<String, AppError> {
+
+fn get_or_create_db_passphrase_for_user(user_id: Option<&str>) -> Result<String, AppError> {
     use crate::store::keychain;
     use zeroize::Zeroize;
 
-    const KEY: &str = "db_passphrase";
+    let key = match user_id {
+        Some(uid) => format!("db_passphrase_{}", uid),
+        None => "db_passphrase".to_string(),
+    };
 
-    if let Some(passphrase) = keychain::get_secret(KEY)? {
+    if let Some(passphrase) = keychain::get_secret(&key)? {
         return Ok(passphrase);
     }
 
@@ -1824,9 +1889,43 @@ fn get_or_create_db_passphrase() -> Result<String, AppError> {
     let passphrase = hex::encode(bytes);
     bytes.zeroize();
 
-    keychain::store_secret(KEY, &passphrase)?;
+    keychain::store_secret(&key, &passphrase)?;
     Ok(passphrase)
 }
+
+/// Clear the local crypto/state store directory for a specific user or the shared store.
+pub fn clear_crypto_store_for_user(user_id: Option<&str>) -> Result<(), AppError> {
+    let dir = get_data_dir_for_user(user_id);
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir)
+            .map_err(|e| AppError::Internal(format!("Failed to clear crypto store: {}", e)))?;
+        log::info!("Cleared crypto store at {:?}", dir);
+    }
+    Ok(())
+}
+
+/// Clear the local crypto/state store directory (shared/default).
+pub fn clear_crypto_store() -> Result<(), AppError> {
+    clear_crypto_store_for_user(None)
+}
+
+/// Clear the db passphrase from keychain for a specific user or the default.
+pub fn clear_db_passphrase_for_user(user_id: Option<&str>) -> Result<(), AppError> {
+    use crate::store::keychain;
+    let key = match user_id {
+        Some(uid) => format!("db_passphrase_{}", uid),
+        None => "db_passphrase".to_string(),
+    };
+    keychain::delete_secret(&key)?;
+    Ok(())
+}
+
+/// Clear the db passphrase from keychain (default).
+pub fn clear_db_passphrase() -> Result<(), AppError> {
+    clear_db_passphrase_for_user(None)
+}
+
+
 // ----------------------------------------------------------
 // Power Levels & Moderation (Phase 5)
 // ----------------------------------------------------------
@@ -1852,7 +1951,4 @@ pub struct BannedUser {
     pub user_id: String,
     pub reason: Option<String>,
 }
-
-
-
 

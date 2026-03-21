@@ -1,5 +1,5 @@
 /// Phase 8: Privacy, Proxy, Certificate Pinning, DoH, Settings Migration,
-/// Multi-Account, SSO, Integrity, and Security Hardening commands.
+/// Multi-Account, Integrity, and Security Hardening commands.
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -115,26 +115,6 @@ pub struct IntegrityReport {
     pub config_ok: bool,
     pub issues: Vec<String>,
     pub checked_at: u64,
-}
-
-// ===================================================================
-// SSO/OIDC
-// ===================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SsoProvider {
-    pub id: String,
-    pub name: String,
-    pub icon: Option<String>,
-    pub brand: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SsoLoginUrl {
-    pub url: String,
-    pub redirect_url: String,
 }
 
 // ===================================================================
@@ -444,6 +424,11 @@ fn load_accounts() -> Result<Vec<AccountInfo>, AppError> {
         .map_err(|e| AppError::Internal(format!("Failed to parse accounts: {}", e)))
 }
 
+/// Public wrapper for saving accounts (used by commands.rs for account switching)
+pub fn save_accounts_pub(accounts: &[AccountInfo]) -> Result<(), AppError> {
+    save_accounts(accounts)
+}
+
 fn save_accounts(accounts: &[AccountInfo]) -> Result<(), AppError> {
     let path = accounts_path()?;
     let data = serde_json::to_string_pretty(accounts)
@@ -510,66 +495,6 @@ pub fn switch_account_impl(user_id: String) -> Result<AccountInfo, AppError> {
 
 pub fn list_accounts_impl() -> Result<Vec<AccountInfo>, AppError> {
     load_accounts()
-}
-
-// ===================================================================
-// SSO/OIDC Commands
-// ===================================================================
-
-pub async fn get_sso_providers_impl(homeserver: &str) -> Result<Vec<SsoProvider>, AppError> {
-    if homeserver.is_empty() {
-        return Err(AppError::InvalidInput("Homeserver URL is required".into()));
-    }
-    let url = format!("{}/_matrix/client/v3/login", homeserver.trim_end_matches('/'));
-    let client = reqwest::Client::new();
-    let response = client.get(&url).send().await
-        .map_err(|e| AppError::Matrix(format!("Failed to query login flows: {}", e)))?;
-    let body: serde_json::Value = response.json().await
-        .map_err(|e| AppError::Matrix(format!("Failed to parse login flows: {}", e)))?;
-
-    let mut providers = Vec::new();
-    if let Some(flows) = body.get("flows").and_then(|f| f.as_array()) {
-        for flow in flows {
-            if flow.get("type").and_then(|t| t.as_str()) == Some("m.login.sso") {
-                if let Some(idps) = flow.get("identity_providers").and_then(|i| i.as_array()) {
-                    for idp in idps {
-                        providers.push(SsoProvider {
-                            id: idp.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                            name: idp.get("name").and_then(|v| v.as_str()).unwrap_or("SSO").to_string(),
-                            icon: idp.get("icon").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                            brand: idp.get("brand").and_then(|v| v.as_str()).map(|s| s.to_string()),
-                        });
-                    }
-                }
-                if providers.is_empty() {
-                    providers.push(SsoProvider {
-                        id: "default".into(),
-                        name: "Single Sign-On".into(),
-                        icon: None,
-                        brand: None,
-                    });
-                }
-            }
-        }
-    }
-    Ok(providers)
-}
-
-pub fn get_sso_login_url_impl(homeserver: &str, provider_id: &str, redirect_url: &str) -> Result<SsoLoginUrl, AppError> {
-    if homeserver.is_empty() {
-        return Err(AppError::InvalidInput("Homeserver URL is required".into()));
-    }
-    let hs = homeserver.trim_end_matches('/');
-    let encoded_redirect = urlencoding::encode(redirect_url);
-    let url = if provider_id == "default" || provider_id.is_empty() {
-        format!("{}/_matrix/client/v3/login/sso/redirect?redirectUrl={}", hs, encoded_redirect)
-    } else {
-        format!("{}/_matrix/client/v3/login/sso/redirect/{}?redirectUrl={}", hs, provider_id, encoded_redirect)
-    };
-    Ok(SsoLoginUrl {
-        url,
-        redirect_url: redirect_url.to_string(),
-    })
 }
 
 // ===================================================================

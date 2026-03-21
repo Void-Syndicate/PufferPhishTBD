@@ -6,6 +6,8 @@ export function useSpaces() {
   const {
     spaces,
     childrenBySpace,
+    childRoomIdsBySpace,
+    isLoadingChildren,
     selectedSpaceId,
     expandedSpaces,
     isLoading,
@@ -14,30 +16,42 @@ export function useSpaces() {
     selectSpace,
     toggleExpanded,
     setLoading,
+    setLoadingChildren,
+    buildFlatChildMap,
   } = useSpacesStore();
+
+  const fetchChildren = useCallback(
+    async (spaceId: string) => {
+      setLoadingChildren(spaceId, true);
+      try {
+        const result = await invoke<SpaceChild[]>("get_space_children", { spaceId });
+        setChildren(spaceId, result);
+      } catch (e) {
+        console.error("Failed to fetch space children:", e);
+      } finally {
+        setLoadingChildren(spaceId, false);
+      }
+    },
+    [setChildren, setLoadingChildren]
+  );
 
   const fetchSpaces = useCallback(async () => {
     setLoading(true);
     try {
       const result = await invoke<SpaceSummary[]>("get_spaces");
       setSpaces(result);
+      // Auto-fetch children for ALL spaces in parallel
+      await Promise.all(result.map((space) => fetchChildren(space.roomId)));
     } catch (e) {
       console.error("Failed to fetch spaces:", e);
       setLoading(false);
     }
-  }, [setSpaces, setLoading]);
+  }, [setSpaces, setLoading, fetchChildren]);
 
-  const fetchChildren = useCallback(
-    async (spaceId: string) => {
-      try {
-        const result = await invoke<SpaceChild[]>("get_space_children", { spaceId });
-        setChildren(spaceId, result);
-      } catch (e) {
-        console.error("Failed to fetch space children:", e);
-      }
-    },
-    [setChildren]
-  );
+  const refreshSpaceChildren = useCallback(async () => {
+    const currentSpaces = useSpacesStore.getState().spaces;
+    await Promise.all(currentSpaces.map((space) => fetchChildren(space.roomId)));
+  }, [fetchChildren]);
 
   const createSpace = useCallback(
     async (name: string, topic?: string, avatarUrl?: string): Promise<string> => {
@@ -64,27 +78,30 @@ export function useSpaces() {
     [fetchChildren]
   );
 
-  const getChildRoomIds = useCallback(
+  const getFilteredRoomIds = useCallback(
     (spaceId: string): Set<string> => {
-      const children = childrenBySpace[spaceId] || [];
-      return new Set(children.map((c) => c.roomId));
+      return childRoomIdsBySpace[spaceId] || new Set();
     },
-    [childrenBySpace]
+    [childRoomIdsBySpace]
   );
 
   return {
     spaces,
     childrenBySpace,
+    childRoomIdsBySpace,
+    isLoadingChildren,
     selectedSpaceId,
     expandedSpaces,
     isLoading,
     fetchSpaces,
     fetchChildren,
+    refreshSpaceChildren,
     createSpace,
     addChild,
     removeChild,
     selectSpace,
     toggleExpanded,
-    getChildRoomIds,
+    getFilteredRoomIds,
+    buildFlatChildMap,
   };
 }

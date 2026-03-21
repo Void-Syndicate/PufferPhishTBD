@@ -4,7 +4,7 @@ import { useRoomsStore, RoomSummary } from "../../stores/rooms";
 import { useSettingsStore } from "../../stores/settings";
 import { usePresenceStore } from "../../stores/presence";
 import { useSpaces } from "../../hooks/useSpaces";
-import { SpaceChild } from "../../stores/spaces";
+import { useSpacesStore, SpaceChild } from "../../stores/spaces";
 import Avatar from "../retro/Avatar";
 import styles from "./BuddyList.module.css";
 
@@ -128,10 +128,11 @@ function CollapsibleGroup({ title, children, count, icon, indent }: {
   );
 }
 
-function SpaceSection({ onSelectSpace }: { onSelectSpace: (id: string | null) => void }) {
+function SpaceSection() {
   const {
     spaces,
     childrenBySpace,
+    isLoadingChildren,
     selectedSpaceId,
     expandedSpaces,
     fetchSpaces,
@@ -144,24 +145,22 @@ function SpaceSection({ onSelectSpace }: { onSelectSpace: (id: string | null) =>
     fetchSpaces();
   }, [fetchSpaces]);
 
-  // Fetch children for expanded spaces
+  // Fetch children for expanded spaces that aren't loaded yet
   useEffect(() => {
     for (const spaceId of expandedSpaces) {
-      if (!childrenBySpace[spaceId]) {
+      if (!childrenBySpace[spaceId] && !isLoadingChildren[spaceId]) {
         fetchChildren(spaceId);
       }
     }
-  }, [expandedSpaces, childrenBySpace, fetchChildren]);
+  }, [expandedSpaces, childrenBySpace, isLoadingChildren, fetchChildren]);
 
   const handleSelect = (spaceId: string | null) => {
     selectSpace(spaceId);
-    onSelectSpace(spaceId);
     if (spaceId) {
-      // Auto-expand and fetch children
       if (!expandedSpaces.has(spaceId)) {
         toggleExpanded(spaceId);
       }
-      if (!childrenBySpace[spaceId]) {
+      if (!childrenBySpace[spaceId] && !isLoadingChildren[spaceId]) {
         fetchChildren(spaceId);
       }
     }
@@ -183,7 +182,7 @@ function SpaceSection({ onSelectSpace }: { onSelectSpace: (id: string | null) =>
           >
             <span
               className={styles.expandIcon}
-              onClick={(e) => { e.stopPropagation(); toggleExpanded(sub.roomId); if (!childrenBySpace[sub.roomId]) fetchChildren(sub.roomId); }}
+              onClick={(e) => { e.stopPropagation(); toggleExpanded(sub.roomId); if (!childrenBySpace[sub.roomId] && !isLoadingChildren[sub.roomId]) fetchChildren(sub.roomId); }}
               style={{ cursor: "pointer" }}
             >
               {isExpanded ? "\u25BC" : "\u25B6"}
@@ -204,7 +203,6 @@ function SpaceSection({ onSelectSpace }: { onSelectSpace: (id: string | null) =>
         <span style={{ fontWeight: "bold", fontSize: "10px", color: "var(--aol-blue-dark)" }}>Spaces</span>
       </div>
 
-      {/* All Rooms option */}
       <div
         className={`${styles.spaceItem} ${selectedSpaceId === null ? styles.spaceSelected : ""}`}
         onClick={() => handleSelect(null)}
@@ -216,6 +214,7 @@ function SpaceSection({ onSelectSpace }: { onSelectSpace: (id: string | null) =>
       {spaces.map((space) => {
         const isExpanded = expandedSpaces.has(space.roomId);
         const children = childrenBySpace[space.roomId] || [];
+        const loading = isLoadingChildren[space.roomId];
         return (
           <div key={space.roomId}>
             <div
@@ -224,7 +223,7 @@ function SpaceSection({ onSelectSpace }: { onSelectSpace: (id: string | null) =>
             >
               <span
                 className={styles.expandIcon}
-                onClick={(e) => { e.stopPropagation(); toggleExpanded(space.roomId); if (!childrenBySpace[space.roomId]) fetchChildren(space.roomId); }}
+                onClick={(e) => { e.stopPropagation(); toggleExpanded(space.roomId); if (!childrenBySpace[space.roomId] && !isLoadingChildren[space.roomId]) fetchChildren(space.roomId); }}
                 style={{ cursor: "pointer" }}
               >
                 {isExpanded ? "\u25BC" : "\u25B6"}
@@ -232,6 +231,7 @@ function SpaceSection({ onSelectSpace }: { onSelectSpace: (id: string | null) =>
               <span style={{ fontSize: "11px" }}>{"\uD83D\uDCC1"}</span>
               <span className={styles.spaceName}>{space.name || space.roomId}</span>
               <span className={styles.groupCount}>({space.childCount})</span>
+              {loading && <span style={{ fontSize: "9px", marginLeft: "2px" }}>{"\u23F3"}</span>}
             </div>
             {isExpanded && children.length > 0 && renderSubspaces(children, 1)}
           </div>
@@ -250,24 +250,18 @@ interface BuddyListProps {
 
 export default function BuddyList({ onCreateRoom, onJoinRoom }: BuddyListProps) {
   const { rooms, selectedRoomId, selectRoom, isLoading } = useRoomsStore();
-  const [spaceFilter, setSpaceFilter] = useState<string | null>(null);
-  const { childrenBySpace, fetchChildren } = useSpaces();
+  const selectedSpaceId = useSpacesStore((s) => s.selectedSpaceId);
+  const childRoomIdsBySpace = useSpacesStore((s) => s.childRoomIdsBySpace);
+  const isLoadingChildren = useSpacesStore((s) => s.isLoadingChildren);
 
-  // Get child room IDs for selected space
   const getFilteredRooms = (): RoomSummary[] => {
-    if (!spaceFilter) return rooms;
-    const children = childrenBySpace[spaceFilter] || [];
-    const childIds = new Set(children.map((c) => c.roomId));
+    if (!selectedSpaceId) return rooms;
+    const childIds = childRoomIdsBySpace[selectedSpaceId];
+    if (!childIds || childIds.size === 0) return [];
     return rooms.filter((r) => childIds.has(r.roomId));
   };
 
-  const handleSelectSpace = (spaceId: string | null) => {
-    setSpaceFilter(spaceId);
-    if (spaceId && !childrenBySpace[spaceId]) {
-      fetchChildren(spaceId);
-    }
-  };
-
+  const spaceLoading = selectedSpaceId ? isLoadingChildren[selectedSpaceId] : false;
   const filteredRooms = getFilteredRooms();
   const grouped = groupRooms(filteredRooms);
 
@@ -290,11 +284,13 @@ export default function BuddyList({ onCreateRoom, onJoinRoom }: BuddyListProps) 
         <div className={styles.loading}>Loading rooms...</div>
       ) : (
         <div className={styles.list}>
-          <SpaceSection onSelectSpace={handleSelectSpace} />
+          <SpaceSection />
 
-          {filteredRooms.length === 0 ? (
+          {spaceLoading ? (
+            <div className={styles.loading}>Loading space rooms...</div>
+          ) : filteredRooms.length === 0 ? (
             <div className={styles.empty}>
-              {spaceFilter ? "No rooms in this space." : "No rooms yet."}
+              {selectedSpaceId ? "No rooms in this space." : "No rooms yet."}
             </div>
           ) : (
             <>

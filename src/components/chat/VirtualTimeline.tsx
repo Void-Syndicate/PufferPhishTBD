@@ -171,7 +171,7 @@ export default function VirtualTimeline({
           textAlign: "center", padding: 8,
           fontFamily: "var(--font-system)", fontSize: 10, color: "#888",
         }}>
-          â³ Loading earlier messages...
+          ⏳ Loading earlier messages...
         </div>
       )}
 
@@ -211,7 +211,7 @@ export default function VirtualTimeline({
             borderRadius: 12, zIndex: 10,
           }}
         >
-          â†“ New messages
+          ↓ New messages
         </button>
       )}
     </div>

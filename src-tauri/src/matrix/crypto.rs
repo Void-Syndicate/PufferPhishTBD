@@ -21,7 +21,7 @@ use matrix_sdk::{
     Client,
 };
 use serde::Serialize;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
 use crate::error::AppError;
 
@@ -93,24 +93,6 @@ pub struct RoomEncryptionStatus {
     pub algorithm: Option<String>,
     pub rotation_period_msgs: Option<u64>,
 }
-
-/// Passphrase-protected wrapper for sensitive material
-#[derive(Zeroize, ZeroizeOnDrop)]
-pub struct SecurePassphrase {
-    inner: String,
-}
-
-impl SecurePassphrase {
-    pub fn new(passphrase: String) -> Self {
-        Self { inner: passphrase }
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.inner
-    }
-}
-
-// ----------------------------------------------------------
 // Encryption operations on the Matrix client
 // ----------------------------------------------------------
 

@@ -1,4 +1,4 @@
-import { useState, FormEvent, lazy, Suspense } from "react";
+import { useState, FormEvent } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAuthStore } from "../../stores/auth";
 import Window from "../retro/Window";
@@ -6,7 +6,6 @@ import Button from "../retro/Button";
 import TextInput from "../retro/TextInput";
 import styles from "./LoginScreen.module.css";
 
-const SsoLogin = lazy(() => import("./SsoLogin"));
 
 interface LoginResponse {
   userId: string;
@@ -19,7 +18,6 @@ export default function LoginScreen() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showDialup, setShowDialup] = useState(false);
-  const [showSso, setShowSso] = useState(false);
 
   const { isConnecting, error, setConnecting, setError, login } = useAuthStore();
 
@@ -94,13 +92,8 @@ export default function LoginScreen() {
             <p className={styles.logoTagline}>Secure Matrix Messaging</p>
           </div>
 
-          {showSso ? (
-            <Suspense fallback={<div style={{ textAlign: "center", padding: 16 }}>{"\u231B"} Loading SSO...</div>}>
-              <SsoLogin homeserver={homeserver} onBack={() => setShowSso(false)} />
-            </Suspense>
-          ) : (
-            /* Login Form */
-            <form onSubmit={handleLogin} className={styles.form} aria-label="Login form">
+          {/* Login Form */}
+          <form onSubmit={handleLogin} className={styles.form} aria-label="Login form">
               <TextInput
                 label="Homeserver"
                 value={homeserver}
@@ -139,29 +132,12 @@ export default function LoginScreen() {
               </div>
 
               <div style={{ textAlign: "center", margin: "8px 0" }}>
-                <button
-                  type="button"
-                  onClick={() => setShowSso(true)}
-                  aria-label="Sign in with SSO"
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "var(--chat-link, #0000FF)",
-                    cursor: "pointer",
-                    textDecoration: "underline",
-                    fontFamily: "var(--font-system)",
-                    fontSize: 11,
-                  }}
-                >
-                  {"\uD83D\uDD11"} Sign in with SSO
-                </button>
               </div>
 
               <div className={styles.footer}>
                 <p className={styles.version}>Version 1.0.0</p>
               </div>
             </form>
-          )}
         </div>
       </Window>
     </div>

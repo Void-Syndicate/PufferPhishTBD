@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMessagesStore, TimelineMessage } from "../../stores/messages";
 import MessageBubble from "./MessageBubble";
@@ -19,6 +19,7 @@ export default function MessageList({ roomId }: MessageListProps) {
   const setMessages = useMessagesStore((s) => s.setMessages);
   const prependMessages = useMessagesStore((s) => s.prependMessages);
   const setLoading = useMessagesStore((s) => s.setLoading);
+  const [error, setError] = useState<string | null>(null);
 
   const listRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -33,11 +34,13 @@ export default function MessageList({ roomId }: MessageListProps) {
   // Initial load
   useEffect(() => {
     if (room?.messages.length) return; // already loaded
+    setError(null);
     loadMessages();
   }, [roomId]);
 
   const loadMessages = useCallback(async () => {
     setLoading(roomId, true);
+    setError(null);
     try {
       const result = await invoke<GetRoomMessagesResult>("get_room_messages", {
         roomId,
@@ -45,7 +48,9 @@ export default function MessageList({ roomId }: MessageListProps) {
       });
       setMessages(roomId, result.messages, result.endToken, result.hasMore);
     } catch (e) {
-      console.error("Failed to load messages:", e);
+      const errMsg = String(e);
+      console.error("Failed to load messages:", errMsg);
+      setError(errMsg);
       setLoading(roomId, false);
     }
   }, [roomId]);
@@ -112,7 +117,15 @@ export default function MessageList({ roomId }: MessageListProps) {
         </div>
       )}
 
-      {messages.length === 0 && !isLoading && (
+      {error && (
+        <div className={styles.empty} style={{ color: "#cc0000" }}>
+          {"\u26A0"} Failed to load messages: {error}
+          <br />
+          <button onClick={loadMessages} style={{ marginTop: 8, cursor: "pointer" }}>Retry</button>
+        </div>
+      )}
+
+      {messages.length === 0 && !isLoading && !error && (
         <div className={styles.empty}>No messages yet. Say hello!</div>
       )}
 
