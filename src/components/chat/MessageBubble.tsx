@@ -1,5 +1,5 @@
 import DOMPurify from "dompurify";
-import { useMemo, useEffect } from "react";
+import React, { useMemo, useEffect } from "react";
 import { useState, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -15,7 +15,6 @@ import styles from "./MessageBubble.module.css";
 interface MessageBubbleProps {
   message: TimelineMessage;
   roomId: string;
-  allMessages: TimelineMessage[];
 }
 
 function MediaImage({ message }: { message: TimelineMessage }) {
@@ -160,7 +159,7 @@ function MediaFile({ message }: { message: TimelineMessage }) {
   );
 }
 
-export default function MessageBubble({ message, roomId, allMessages }: MessageBubbleProps) {
+function MessageBubbleInner({ message, roomId }: MessageBubbleProps) {
   const userId = useAuthStore((s) => s.userId);
   const setReplyingTo = useMessagesStore((s) => s.setReplyingTo);
   const setEditingMessage = useMessagesStore((s) => s.setEditingMessage);
@@ -221,6 +220,7 @@ export default function MessageBubble({ message, roomId, allMessages }: MessageB
     }
   };
 
+  const allMessages = useMessagesStore((s) => s.rooms[roomId]?.messages ?? []);
   const replySource = message.replyTo
     ? allMessages.find((m) => m.eventId === message.replyTo)
     : null;
@@ -358,3 +358,7 @@ export default function MessageBubble({ message, roomId, allMessages }: MessageB
     </div>
   );
 }
+
+
+
+export default React.memo(MessageBubbleInner);

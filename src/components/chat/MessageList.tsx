@@ -134,7 +134,6 @@ export default function MessageList({ roomId }: MessageListProps) {
           key={msg.eventId}
           message={msg}
           roomId={roomId}
-          allMessages={messages}
         />
       ))}
 
