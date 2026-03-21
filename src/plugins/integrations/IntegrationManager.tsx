@@ -1,4 +1,4 @@
-﻿// IntegrationManager — Integration manager panel for Dimension/hookshot compatibility
+// IntegrationManager — Integration manager panel for Dimension/hookshot compatibility
 // Supports opening integration manager UIs in an iframe widget frame
 
 import { useState, useCallback } from 'react';

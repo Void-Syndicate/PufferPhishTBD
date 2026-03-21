@@ -1,4 +1,4 @@
-﻿// PluginManager — Install, enable, disable, remove plugins
+// PluginManager — Install, enable, disable, remove plugins
 // Manages plugin lifecycle and coordinates bridges
 
 import { invoke } from '@tauri-apps/api/core';

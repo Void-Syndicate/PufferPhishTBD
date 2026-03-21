@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useCallback, type ReactNode } from "react";
+import { useState, useRef, useCallback, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useUploadsStore } from "../../stores/uploads";
 import styles from "./FileDropZone.module.css";

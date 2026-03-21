@@ -1,4 +1,4 @@
-﻿import { useRoomsStore } from "../../stores/rooms";
+import { useRoomsStore } from "../../stores/rooms";
 import styles from "./MemberList.module.css";
 
 interface MemberListProps {

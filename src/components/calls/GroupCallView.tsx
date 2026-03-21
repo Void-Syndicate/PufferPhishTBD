@@ -1,4 +1,4 @@
-﻿/**
+/**
  * GroupCallView — Multi-participant call with grid/speaker layouts
  */
 import { useRef, useEffect, useState } from "react";

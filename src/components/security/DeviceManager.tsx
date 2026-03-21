@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useEncryption } from "../../hooks/useEncryption";
 import { useEncryptionStore, DeviceInfo } from "../../stores/encryption";
 import Window from "../retro/Window";

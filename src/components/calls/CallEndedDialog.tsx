@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CallEndedDialog — Shows call ended with duration summary
  */
 import { useCallsStore } from "../../stores/calls";

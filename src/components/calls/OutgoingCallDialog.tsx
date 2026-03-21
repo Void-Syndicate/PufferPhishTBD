@@ -1,4 +1,4 @@
-﻿/**
+/**
  * OutgoingCallDialog — "Dialing..." AOL phone animation
  */
 import { useCallsStore } from "../../stores/calls";

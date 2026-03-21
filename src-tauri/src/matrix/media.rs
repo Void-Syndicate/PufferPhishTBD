@@ -1,4 +1,4 @@
-﻿use matrix_sdk::Client;
+use matrix_sdk::Client;
 use matrix_sdk::media::{MediaFormat, MediaRequestParameters, MediaThumbnailSettings};
 use matrix_sdk::ruma::events::room::MediaSource;
 use matrix_sdk::ruma::UInt;

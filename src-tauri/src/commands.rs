@@ -1678,18 +1678,7 @@ pub async fn call_invite(
     });
 
     // Send as custom event type m.call.invite
-    use matrix_sdk::ruma::events::AnyMessageLikeEventContent;
-    let raw_content = matrix_sdk::ruma::serde::Raw::from_json(
-        serde_json::value::to_raw_value(&event_json)
-            .map_err(|e| AppError::Internal(e.to_string()))?,
-    );
-
-    let custom_content = AnyMessageLikeEventContent::from_parts(
-        "m.call.invite",
-        &raw_content,
-    ).map_err(|e| AppError::Internal(e.to_string()))?;
-
-    room.send(custom_content).await
+    room.send_raw("m.call.invite", event_json).await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     // Get peer info from room members
@@ -1751,17 +1740,7 @@ pub async fn call_answer(
     let event_json = serde_json::to_value(&answer_content)
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    use matrix_sdk::ruma::events::AnyMessageLikeEventContent;
-    let raw_content = matrix_sdk::ruma::serde::Raw::from_json(
-        serde_json::value::to_raw_value(&event_json)
-            .map_err(|e| AppError::Internal(e.to_string()))?,
-    );
-    let custom_content = AnyMessageLikeEventContent::from_parts(
-        "m.call.answer",
-        &raw_content,
-    ).map_err(|e| AppError::Internal(e.to_string()))?;
-
-    room.send(custom_content).await
+    room.send_raw("m.call.answer", event_json).await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     // Update VoIP state to connecting
@@ -1801,17 +1780,7 @@ pub async fn call_hangup(
     let event_json = serde_json::to_value(&hangup_content)
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    use matrix_sdk::ruma::events::AnyMessageLikeEventContent;
-    let raw_content = matrix_sdk::ruma::serde::Raw::from_json(
-        serde_json::value::to_raw_value(&event_json)
-            .map_err(|e| AppError::Internal(e.to_string()))?,
-    );
-    let custom_content = AnyMessageLikeEventContent::from_parts(
-        "m.call.hangup",
-        &raw_content,
-    ).map_err(|e| AppError::Internal(e.to_string()))?;
-
-    room.send(custom_content).await
+    room.send_raw("m.call.hangup", event_json).await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     // End call in state
@@ -1854,17 +1823,7 @@ pub async fn call_candidates(
     let event_json = serde_json::to_value(&candidates_content)
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-    use matrix_sdk::ruma::events::AnyMessageLikeEventContent;
-    let raw_content = matrix_sdk::ruma::serde::Raw::from_json(
-        serde_json::value::to_raw_value(&event_json)
-            .map_err(|e| AppError::Internal(e.to_string()))?,
-    );
-    let custom_content = AnyMessageLikeEventContent::from_parts(
-        "m.call.candidates",
-        &raw_content,
-    ).map_err(|e| AppError::Internal(e.to_string()))?;
-
-    room.send(custom_content).await
+    room.send_raw("m.call.candidates", event_json).await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     Ok(())
@@ -1934,7 +1893,7 @@ pub async fn get_turn_servers(
                 "username": response.username,
                 "password": response.password,
                 "uris": uris,
-                "ttl": u64::from(response.ttl),
+                "ttl": response.ttl.as_secs(),
             }))
         }
         Err(e) => {

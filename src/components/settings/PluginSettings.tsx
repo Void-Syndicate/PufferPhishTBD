@@ -1,10 +1,8 @@
-﻿// PluginSettings — List installed plugins, enable/disable, per-plugin settings, install/remove
+// PluginSettings — List installed plugins, enable/disable, per-plugin settings, install/remove
 
 import { useState, useEffect, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { usePluginStore } from '../../stores/pluginStore';
 import { pluginManager } from '../../plugins/PluginManager';
-import type { InstalledPlugin } from '../../plugins/sdk/PluginManifest';
 import styles from './PluginSettings.module.css';
 
 interface PluginSettingsProps {

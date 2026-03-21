@@ -1,4 +1,4 @@
-﻿/**
+/**
  * DeviceSelector — Audio/Video device selection popup
  */
 import { useEffect } from "react";

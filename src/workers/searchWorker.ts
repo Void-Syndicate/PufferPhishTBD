@@ -1,4 +1,4 @@
-﻿/// Web Worker for heavy operations: search indexing and markdown parsing.
+/// Web Worker for heavy operations: search indexing and markdown parsing.
 /// Runs off the main thread to prevent UI jank.
 
 interface SearchIndex {

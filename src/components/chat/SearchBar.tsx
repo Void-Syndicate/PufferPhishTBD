@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { TimelineMessage } from "../../stores/messages";
 import styles from "./SearchBar.module.css";

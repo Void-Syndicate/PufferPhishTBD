@@ -1,4 +1,4 @@
-﻿/**
+/**
  * InCallView — Active call view with video feeds, controls, and PiP
  */
 import { useEffect, useRef, useState } from "react";

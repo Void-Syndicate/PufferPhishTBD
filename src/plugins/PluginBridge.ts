@@ -1,4 +1,4 @@
-﻿// PluginBridge — postMessage-based communication bridge between host and plugin iframes
+// PluginBridge — postMessage-based communication bridge between host and plugin iframes
 //
 // The host creates one PluginBridge per loaded plugin.  All Matrix SDK access is
 // mediated here — plugins NEVER get direct SDK access.
@@ -9,7 +9,6 @@ import type {
   PluginToHostMessage,
   HostToPluginMessage,
   MatrixMessagePayload,
-  PluginPermission,
   StorageResponsePayload,
 } from './sdk/types';
 import { PluginContext } from './sdk/PluginContext';

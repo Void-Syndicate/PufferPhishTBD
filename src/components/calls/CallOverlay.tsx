@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CallOverlay — Master wrapper that shows the right call UI based on state
  */
 import { useCallsStore } from "../../stores/calls";

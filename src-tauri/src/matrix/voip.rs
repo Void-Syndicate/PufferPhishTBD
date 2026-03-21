@@ -1,4 +1,4 @@
-﻿// VoIP Signaling Layer for Matrix Call Events
+// VoIP Signaling Layer for Matrix Call Events
 // Handles m.call.invite, m.call.answer, m.call.candidates, m.call.hangup
 // WebRTC runs in the webview — Rust side handles Matrix signaling only.
 

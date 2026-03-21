@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 
 export type CallState = "idle" | "ringing" | "connecting" | "connected" | "ended";
 export type CallDirection = "outgoing" | "incoming";

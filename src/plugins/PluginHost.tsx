@@ -1,4 +1,4 @@
-﻿// PluginHost — React component that mounts plugin iframes with strict CSP sandboxing
+// PluginHost — React component that mounts plugin iframes with strict CSP sandboxing
 
 import { useEffect, useRef, useState } from 'react';
 import { PluginBridge } from './PluginBridge';

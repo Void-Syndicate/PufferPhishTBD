@@ -1,4 +1,4 @@
-﻿// PluginDevWatcher — Hot-reload file watcher for plugin development
+// PluginDevWatcher — Hot-reload file watcher for plugin development
 //
 // In dev mode, watches plugin directories for file changes and triggers
 // iframe reload when source files change.
@@ -29,7 +29,6 @@ export function startPluginDevWatcher(): void {
 
       try {
         // Check if plugin files have changed by looking at manifest mod time
-        const manifestPath = `${plugin.path}/manifest.json`;
         const currentTime = Date.now();
         const lastKnown = lastModifiedCache.get(plugin.manifest.id) || 0;
 

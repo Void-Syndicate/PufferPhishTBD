@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useEncryption } from "../../hooks/useEncryption";
 import Window from "../retro/Window";
 import Button from "../retro/Button";

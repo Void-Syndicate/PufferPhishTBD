@@ -1,4 +1,4 @@
-﻿import DOMPurify from "dompurify";
+import DOMPurify from "dompurify";
 import { useMemo, useEffect } from "react";
 import { useState, useRef, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";

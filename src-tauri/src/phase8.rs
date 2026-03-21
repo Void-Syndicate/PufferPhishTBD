@@ -1,4 +1,4 @@
-﻿/// Phase 8: Privacy, Proxy, Certificate Pinning, DoH, Settings Migration,
+/// Phase 8: Privacy, Proxy, Certificate Pinning, DoH, Settings Migration,
 /// Multi-Account, SSO, Integrity, and Security Hardening commands.
 
 use serde::{Deserialize, Serialize};
@@ -234,7 +234,7 @@ pub fn test_proxy_connection_impl(config: &ProxyConfig) -> Result<bool, AppError
 
     let rt = tokio::runtime::Handle::try_current();
     match rt {
-        Ok(handle) => {
+        Ok(_handle) => {
             // We're in an async context, but we can spawn a blocking task
             let proxy_url_clone = proxy_url.clone();
             let result = std::thread::spawn(move || {

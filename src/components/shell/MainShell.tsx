@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useRoomsStore, RoomSummary } from "../../stores/rooms";
 import { useAuthStore } from "../../stores/auth";
@@ -12,7 +12,7 @@ import ChatView from "../chat/ChatView";
 import CallOverlay from "../calls/CallOverlay";
 import IncomingVerificationDialog from "../security/IncomingVerificationDialog";
 import { useCall } from "../../hooks/useCall";
-import { LoadingSpinner } from "../common/LoadingStates";
+import { HourglassSpinner } from "../common/LoadingStates";
 import { EmptyState } from "../common/EmptyStates";
 import AccountSwitcher from "../settings/AccountSwitcher";
 import styles from "./MainShell.module.css";
@@ -45,7 +45,7 @@ type DialogType = "create" | "join" | "directory" | "invite" | "invites" | "sett
 
 const DialogFallback = () => (
   <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 800 }}>
-    <LoadingSpinner label="Loading..." />
+    <HourglassSpinner message="Loading..." />
   </div>
 );
 
@@ -187,7 +187,7 @@ export default function MainShell() {
             <EmptyState
               icon={"\uD83D\uDC21"}
               title={`Welcome, ${displayName || userId}!`}
-              description="You've got rooms! Select a room from the Buddy List to start chatting."
+              message="You've got rooms! Select a room from the Buddy List to start chatting."
             />
           )}
         </div>

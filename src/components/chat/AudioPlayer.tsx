@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import styles from "./AudioPlayer.module.css";
 
 interface AudioPlayerProps {

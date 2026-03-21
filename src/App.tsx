@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAuthStore } from "./stores/auth";
 import { useEncryptionStore } from "./stores/encryption";
@@ -6,7 +6,7 @@ import { useEncryption } from "./hooks/useEncryption";
 import LoginScreen from "./components/login/LoginScreen";
 import MainShell from "./components/shell/MainShell";
 import LockScreen from "./components/security/LockScreen";
-import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import ErrorBoundary from "./components/common/ErrorBoundary";
 import { SkipNavLink } from "./components/accessibility/SkipNavLink";
 import "./themes/aol-dark/dark.css";
 

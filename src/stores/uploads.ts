@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 
 export type UploadStatus = "pending" | "uploading" | "complete" | "failed" | "cancelled";
 

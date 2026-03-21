@@ -1,4 +1,4 @@
-﻿import { useSettingsStore } from "../../stores/settings";
+import { useSettingsStore } from "../../stores/settings";
 import { soundEngine, SoundEvent } from "../../audio/SoundEngine";
 import styles from "./SoundSettings.module.css";
 

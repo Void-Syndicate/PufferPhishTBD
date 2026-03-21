@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CallButton — Audio/Video call buttons for room header
  */
 import { useState } from "react";

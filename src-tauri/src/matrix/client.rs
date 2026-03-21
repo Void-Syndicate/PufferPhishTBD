@@ -1,4 +1,4 @@
-﻿use matrix_sdk::{
+use matrix_sdk::{
     config::SyncSettings,
     room::Room,
     ruma::{
@@ -567,7 +567,7 @@ impl MatrixClient {
                             sender_display_name: None,
                             sdp,
                             is_video,
-                            lifetime_ms: original.content.lifetime.as_millis() as u64,
+                            lifetime_ms: u64::from(original.content.lifetime),
                             party_id: original.content.party_id.as_ref().map(|p| p.to_string()).unwrap_or_default(),
                         };
                         if let Err(e) = handle.emit("matrix://call-invite", &payload) {
@@ -635,7 +635,7 @@ impl MatrixClient {
                 let handle = handle_clone.clone();
                 async move {
                     if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) = event {
-                        let reason = original.content.reason.as_ref().map(|r| format!("{:?}", r));
+                        let reason = Some(format!("{:?}", original.content.reason));
                         let payload = crate::matrix::voip::CallHangupEvent {
                             room_id: room.room_id().to_string(),
                             call_id: original.content.call_id.to_string(),

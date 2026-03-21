@@ -1,4 +1,4 @@
-﻿// Plugin system barrel exports
+// Plugin system barrel exports
 
 export { pluginManager } from './PluginManager';
 export { PluginBridge } from './PluginBridge';

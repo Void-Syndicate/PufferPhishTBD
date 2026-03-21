@@ -1,4 +1,4 @@
-﻿// WidgetAPI — Matrix widget API implementation (postMessage interface per MSC1960/MSC2762)
+// WidgetAPI — Matrix widget API implementation (postMessage interface per MSC1960/MSC2762)
 //
 // Implements the fromWidget/toWidget postMessage protocol that allows Matrix widgets
 // (embedded web apps) to communicate with the client.
@@ -36,7 +36,7 @@ export class WidgetApi {
   private requestHandlers: Map<string, (data: Record<string, unknown>) => Promise<Record<string, unknown>>> = new Map();
   private pendingRequests: Map<string, { resolve: (v: Record<string, unknown>) => void; reject: (e: Error) => void }> = new Map();
   private requestCounter = 0;
-  private approvedCapabilities: Set<WidgetCapability> = new Set();
+  private approvedCapabilities = new Set<WidgetCapability>();
   private _messageListener: ((event: MessageEvent) => void) | null = null;
 
   constructor(widgetId: string) {
@@ -81,6 +81,11 @@ export class WidgetApi {
   /** Set approved capabilities */
   setCapabilities(caps: WidgetCapability[]): void {
     this.approvedCapabilities = new Set(caps);
+  }
+
+  /** Check if a capability is approved */
+  hasCapability(cap: WidgetCapability): boolean {
+    return this.approvedCapabilities.has(cap);
   }
 
   /** Register a handler for widget requests */

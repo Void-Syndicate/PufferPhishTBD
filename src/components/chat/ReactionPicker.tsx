@@ -1,4 +1,4 @@
-﻿import styles from "./ReactionPicker.module.css";
+import styles from "./ReactionPicker.module.css";
 
 const EMOJIS = ["👍", "👎", "❤️", "😂", "😮", "😢", "🎉", "🔥", "👀", "✅", "❌", "💯"];
 

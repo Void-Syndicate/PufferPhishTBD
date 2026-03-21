@@ -4246,7 +4246,7 @@ dependencies = [
 
 [[package]]
 name = "pufferchat"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "argon2",
@@ -4255,6 +4255,7 @@ dependencies = [
  "getrandom 0.2.17",
  "hex",
  "keyring",
+ "lazy_static",
  "libsqlite3-sys",
  "log",
  "matrix-sdk",
@@ -4272,6 +4273,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "url",
+ "urlencoding",
  "zeroize",
 ]
 

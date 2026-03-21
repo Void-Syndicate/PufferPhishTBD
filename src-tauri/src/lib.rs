@@ -1,4 +1,4 @@
-﻿mod commands;
+mod commands;
 mod error;
 mod link_preview;
 mod matrix;

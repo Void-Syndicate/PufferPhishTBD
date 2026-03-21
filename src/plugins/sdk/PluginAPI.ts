@@ -1,4 +1,4 @@
-﻿// PluginAPI — The API surface exposed to plugins running inside iframes
+// PluginAPI — The API surface exposed to plugins running inside iframes
 //
 // Plugins include this file (or the built version) and call PufferChatPlugin.init()
 // to bootstrap communication with the host via postMessage.
@@ -9,7 +9,6 @@ import type {
   PluginToHostMessage,
   PluginInitPayload,
   MatrixMessagePayload,
-  CommandInvokedPayload,
   PluginPermission,
   RoomInfo,
   UserInfo,

@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 
 export interface TypingState {
   typing: Record<string, string[]>; // roomId -> user_ids

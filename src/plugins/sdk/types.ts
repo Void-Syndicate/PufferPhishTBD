@@ -1,4 +1,4 @@
-﻿// Plugin Communication Types — Shared between host and plugin iframes
+// Plugin Communication Types — Shared between host and plugin iframes
 
 /** Message types sent FROM the host TO the plugin */
 export type HostToPluginMessage =

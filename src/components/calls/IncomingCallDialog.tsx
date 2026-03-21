@@ -1,4 +1,4 @@
-﻿/**
+/**
  * IncomingCallDialog — AOL-style popup for incoming calls
  */
 import { useCallsStore } from "../../stores/calls";

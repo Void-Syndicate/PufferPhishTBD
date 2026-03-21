@@ -1,4 +1,4 @@
-﻿// WidgetContainer — Renders Matrix widgets in rooms (iframe-based)
+// WidgetContainer — Renders Matrix widgets in rooms (iframe-based)
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { WidgetApi } from './WidgetAPI';

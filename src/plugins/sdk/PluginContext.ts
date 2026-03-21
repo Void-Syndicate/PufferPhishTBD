@@ -1,4 +1,4 @@
-﻿// PluginContext — Runtime context passed to plugins with permission-restricted API
+// PluginContext — Runtime context passed to plugins with permission-restricted API
 
 import type { PluginPermission, PluginInitPayload } from './types';
 import type { PluginManifest } from './PluginManifest';

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * useCall — WebRTC lifecycle hook for PufferChat
  * Manages RTCPeerConnection, media streams, and Matrix VoIP signaling
  */

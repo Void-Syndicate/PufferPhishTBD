@@ -1,4 +1,4 @@
-﻿// Plugin Manifest — Type definitions for plugin manifest files
+// Plugin Manifest — Type definitions for plugin manifest files
 
 import type { PluginPermission } from './types';
 

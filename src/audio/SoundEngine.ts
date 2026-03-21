@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PufferChat Sound Effects Engine
  * AOL-inspired sound scheme with configurable playback
  */

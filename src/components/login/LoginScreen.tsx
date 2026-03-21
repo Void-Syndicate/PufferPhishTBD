@@ -1,4 +1,4 @@
-﻿import { useState, FormEvent, lazy, Suspense } from "react";
+import { useState, FormEvent, lazy, Suspense } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAuthStore } from "../../stores/auth";
 import Window from "../retro/Window";

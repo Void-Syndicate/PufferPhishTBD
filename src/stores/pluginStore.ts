@@ -1,8 +1,7 @@
-﻿// Plugin Store — Zustand store for plugin state management
+// Plugin Store — Zustand store for plugin state management
 
 import { create } from 'zustand';
-import type { InstalledPlugin, PluginManifest } from '../plugins/sdk/PluginManifest';
-import type { PluginPermission } from '../plugins/sdk/types';
+import type { InstalledPlugin } from '../plugins/sdk/PluginManifest';
 import type { PluginCommandEntry } from '../plugins/PluginManager';
 
 export interface PluginStoreState {
@@ -56,7 +55,7 @@ function loadDevMode(): boolean {
   }
 }
 
-export const usePluginStore = create<PluginStoreState>((set, get) => ({
+export const usePluginStore = create<PluginStoreState>((set) => ({
   plugins: [],
   activePluginIds: new Set(),
   commands: [],

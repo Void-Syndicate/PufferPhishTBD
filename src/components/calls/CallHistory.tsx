@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CallHistory — Call log panel with AOL retro styling
  */
 import { useEffect } from "react";

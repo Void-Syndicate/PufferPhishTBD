@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAccountStore, AccountEntry } from "../../stores/accountStore";
 import { useAuthStore } from "../../stores/auth";

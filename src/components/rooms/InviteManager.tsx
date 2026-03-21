@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useRoomsStore, RoomSummary } from "../../stores/rooms";
 import styles from "./InviteManager.module.css";

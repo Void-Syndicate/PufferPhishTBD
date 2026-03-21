@@ -1,4 +1,4 @@
-﻿import { useUploadsStore } from "../../stores/uploads";
+import { useUploadsStore } from "../../stores/uploads";
 import type { Upload } from "../../stores/uploads";
 import styles from "./UploadProgress.module.css";
 

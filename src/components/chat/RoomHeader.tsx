@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRoomsStore } from "../../stores/rooms";
 import { RoomEncryptionStatus } from "../../stores/encryption";
 import { useEncryption } from "../../hooks/useEncryption";
