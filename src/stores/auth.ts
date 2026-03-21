@@ -19,6 +19,7 @@ export interface AuthState {
     deviceId: string;
   }) => void;
   logout: () => void;
+  setDisplayName: (name: string) => void;
 }
 
 // NOTE: accessToken is intentionally absent from frontend state.
@@ -55,4 +56,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       isConnecting: false,
       error: null,
     }),
+
+  setDisplayName: (name) => set({ displayName: name }),
 }));

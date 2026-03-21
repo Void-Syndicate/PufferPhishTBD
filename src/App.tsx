@@ -9,6 +9,9 @@ import LockScreen from "./components/security/LockScreen";
 import ErrorBoundary from "./components/common/ErrorBoundary";
 import { SkipNavLink } from "./components/accessibility/SkipNavLink";
 import "./themes/aol-dark/dark.css";
+import "./themes/aol-2026/theme.css";
+import "./themes/high-contrast/theme.css";
+import { initTheme } from "./themes/engine";
 
 interface LoginResponse {
   userId: string;
@@ -25,10 +28,9 @@ function App() {
   const autoLockEnabled = useEncryptionStore((s) => s.autoLockEnabled);
   const { checkLockState } = useEncryption();
 
-  // Theme management
+  // Theme initialization via engine
   useEffect(() => {
-    const savedTheme = localStorage.getItem("pufferchat_theme") || "light";
-    document.documentElement.setAttribute("data-theme", savedTheme);
+    initTheme();
   }, []);
 
   // Try to restore saved session on startup (with frontend timeout safety)

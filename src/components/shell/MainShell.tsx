@@ -38,6 +38,7 @@ const SecuritySettingsPanel = lazy(() => import("../settings/SecuritySettings"))
 const UpdateSettings = lazy(() => import("../settings/UpdateSettings"));
 const SettingsExportImport = lazy(() => import("../settings/SettingsExportImport"));
 const IntegrityCheck = lazy(() => import("../settings/IntegrityCheck"));
+const SettingsPanel = lazy(() => import("../settings/SettingsPanel"));
 
 type DialogType = "create" | "join" | "directory" | "invite" | "invites" | "settings" | "plugins" | "call-history"
   | "encryption-setup" | "device-manager" | "device-verify" | "key-backup" | "key-export" | "auto-lock"
@@ -133,13 +134,9 @@ export default function MainShell() {
 
   const selectedRoom = rooms.find((r) => r.roomId === selectedRoomId);
 
-  // Theme toggle
-  const toggleTheme = () => {
-    const current = document.documentElement.getAttribute("data-theme") || "light";
-    const next = current === "dark" ? "light" : current === "light" ? "dark" : "light";
-    document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem("pufferchat_theme", next);
-  };
+  // Settings panel state
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"account" | "appearance" | undefined>(undefined);
 
   return (
     <div className={styles.shell} role="application" aria-label="PufferChat">
@@ -157,12 +154,9 @@ export default function MainShell() {
         <button className={styles.toolBtn} onClick={() => setActiveDialog("create")} aria-label="Create new room">{"\u270F\uFE0F"} Write</button>
         <button className={styles.toolBtn} onClick={() => setActiveDialog("directory")} aria-label="Browse rooms">{"\uD83D\uDCAC"} Rooms</button>
         <button className={styles.toolBtn} onClick={() => selectedRoomId ? setActiveDialog("invite") : null} aria-label="Invite people">{"\uD83D\uDC65"} People</button>
-        <button className={styles.toolBtn} onClick={() => setActiveDialog(activeDialog === "settings" ? null : "settings")} aria-label="Sound settings">{"\u2699\uFE0F"} Setup</button>
-        <button className={styles.toolBtn} onClick={() => setActiveDialog(activeDialog === "plugins" ? null : "plugins")} aria-label="Plugin settings">{"\uD83E\uDDE9"} Plugins</button>
         <button className={styles.toolBtn} onClick={() => setActiveDialog("encryption-setup")} aria-label="Security settings">{"\uD83D\uDD12"} Security</button>
-        <button className={styles.toolBtn} onClick={() => setActiveDialog("proxy")} aria-label="Proxy settings">{"\uD83C\uDF10"} Proxy</button>
-        <button className={styles.toolBtn} onClick={() => setActiveDialog("security-settings")} aria-label="Privacy settings">{"\uD83D\uDEE1\uFE0F"} Privacy</button>
-        <button className={styles.toolBtn} onClick={toggleTheme} aria-label="Toggle dark mode">{"\uD83C\uDF19"} Theme</button>
+        <button className={styles.toolBtn} onClick={() => { setSettingsTab(undefined); setShowSettings(true); }} aria-label="Open settings">{"\u2699\uFE0F"} Settings</button>
+        <button className={styles.toolBtn} onClick={() => { setSettingsTab("appearance"); setShowSettings(true); }} aria-label="Theme settings">{"\uD83C\uDFA8"} Theme</button>
         {autoLockEnabled && (
           <button className={styles.toolBtn} onClick={lockApp} aria-label="Lock application">{"\uD83D\uDD10"} Lock</button>
         )}
@@ -272,6 +266,9 @@ export default function MainShell() {
         )}
         {activeDialog === "call-history" && (
           <CallHistory onClose={() => setActiveDialog(null)} />
+        )}
+        {showSettings && (
+          <SettingsPanel onClose={() => setShowSettings(false)} initialTab={settingsTab} />
         )}
       </Suspense>
       <IncomingVerificationDialog />

@@ -9,8 +9,62 @@
   --border-color: #ffffff;
   --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --focus-outline: 3px solid #ffeb3b;
+
+  /* === Override classic AOL variables === */
+  --aol-blue: #4da6ff;
+  --aol-blue-light: #6db3f2;
+  --aol-blue-dark: #2979c1;
+  --aol-white: #ffffff;
+  --aol-black: #ffffff;
+  --aol-gray: #e0e0e0;
+  --aol-gray-light: #1a1a1a;
+  --aol-yellow: #ffeb3b;
+  --win-bg: #000000;
+  --win-border-light: #ffffff;
+  --win-border-dark: #000000;
+  --win-border-shadow: #ffffff;
+  --font-system: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-size-base: 14px;
+  --font-size-small: 12px;
+  --statusbar-bg: #000000;
+  --statusbar-text: #ffffff;
+  --chat-bg: #000000;
+  --chat-text: #ffffff;
+  --chat-sender: #4da6ff;
+  --chat-timestamp: #e0e0e0;
+  --msg-bg-self: #1a1a1a;
+  --msg-bg-other: #1a1a1a;
+  --input-bg-field: #1a1a1a;
+  --buddy-online: #00ff00;
+  --buddy-away: #ffeb3b;
+  --buddy-offline: #e0e0e0;
 }
 [data-theme="high-contrast"] { font-family: var(--font-family); background: var(--bg-primary); color: var(--text-primary); font-size: 1.0625rem; }
+
+/* === Global overrides for hardcoded light colors === */
+[data-theme="high-contrast"] .aol-app { background: #000 !important; color: #fff !important; }
+[data-theme="high-contrast"] [class*="chatView"] { background: #000 !important; }
+[data-theme="high-contrast"] [class*="messageBubble"],
+[data-theme="high-contrast"] [class*="bubble"] { background: #1a1a1a !important; color: #fff !important; border: 1px solid #fff !important; }
+[data-theme="high-contrast"] [class*="messageList"],
+[data-theme="high-contrast"] [class*="timeline"] { background: #000 !important; color: #fff !important; }
+[data-theme="high-contrast"] [class*="composer"],
+[data-theme="high-contrast"] [class*="Composer"] { background: #1a1a1a !important; color: #fff !important; }
+[data-theme="high-contrast"] [class*="composer"] textarea,
+[data-theme="high-contrast"] [class*="Composer"] textarea { background: #000 !important; color: #fff !important; border: 2px solid #fff !important; }
+[data-theme="high-contrast"] [class*="roomHeader"],
+[data-theme="high-contrast"] [class*="RoomHeader"] { background: #1a1a1a !important; color: #fff !important; }
+[data-theme="high-contrast"] [class*="buddyList"],
+[data-theme="high-contrast"] [class*="BuddyList"] { background: #000 !important; color: #fff !important; }
+[data-theme="high-contrast"] [class*="sidebar"] { background: #000 !important; }
+[data-theme="high-contrast"] [class*="statusBar"] { background: #000 !important; color: #fff !important; }
+[data-theme="high-contrast"] [class*="menuBar"] { background: #000 !important; color: #fff !important; }
+[data-theme="high-contrast"] [class*="toolbar"] { background: #1a1a1a !important; }
+[data-theme="high-contrast"] [class*="toolBtn"] { background: #000 !important; color: #fff !important; border: 2px solid #fff !important; }
+[data-theme="high-contrast"] [class*="roomItem"],
+[data-theme="high-contrast"] [class*="RoomItem"] { color: #fff !important; }
+[data-theme="high-contrast"] [class*="emptyState"],
+[data-theme="high-contrast"] [class*="EmptyState"] { color: #fff !important; }
 [data-theme="high-contrast"] *:focus-visible { outline: var(--focus-outline) !important; outline-offset: 2px !important; }
 [data-theme="high-contrast"] button { border: 2px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-weight: 700; padding: 8px 16px; cursor: pointer; }
 [data-theme="high-contrast"] button:hover { background: var(--accent-primary); color: #000000; }

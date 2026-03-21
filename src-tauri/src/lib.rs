@@ -41,6 +41,7 @@ pub fn run() {
             commands::restore_session,
             commands::matrix_login,
             commands::matrix_logout,
+            commands::set_display_name,
             // Rooms
             commands::get_rooms,
             commands::start_sync,

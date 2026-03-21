@@ -201,6 +201,24 @@ pub async fn restore_session(
     Ok(Some(result))
 }
 
+/// Set display name on the Matrix account
+#[tauri::command]
+pub async fn set_display_name(
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client
+        .inner()
+        .account()
+        .set_display_name(Some(&name))
+        .await
+        .map_err(|e| AppError::Matrix(format!("Failed to set display name: {}", e)))?;
+    log::info!("Display name updated to: {}", name);
+    Ok(())
+}
+
 /// Logout from Matrix
 #[tauri::command]
 pub async fn matrix_logout(state: State<'_, AppState>) -> Result<(), AppError> {

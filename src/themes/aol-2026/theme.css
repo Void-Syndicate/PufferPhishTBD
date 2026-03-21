@@ -1,4 +1,5 @@
 :root[data-theme="aol-2026"] {
+  /* === 2026 Design Tokens === */
   --bg-primary: #0a0e1a;
   --bg-secondary: #111827;
   --bg-tertiary: #1f2937;
@@ -26,6 +27,35 @@
   --input-border: rgba(255, 255, 255, 0.1);
   --input-focus-border: var(--accent-primary);
   --input-focus-glow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+
+  /* === Override classic AOL variables for shell/component compatibility === */
+  --aol-blue: #3b82f6;
+  --aol-blue-light: #60a5fa;
+  --aol-blue-dark: #1d4ed8;
+  --aol-white: #f9fafb;
+  --aol-black: #f9fafb;
+  --aol-gray: #6b7280;
+  --aol-gray-light: #1f2937;
+  --aol-yellow: #f59e0b;
+  --win-bg: #111827;
+  --win-border-light: #374151;
+  --win-border-dark: #0a0e1a;
+  --win-border-shadow: #1f2937;
+  --font-system: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-size-base: 12px;
+  --font-size-small: 10px;
+  --statusbar-bg: #0a0e1a;
+  --statusbar-text: #9ca3af;
+  --chat-bg: #0a0e1a;
+  --chat-text: #f9fafb;
+  --chat-sender: #60a5fa;
+  --chat-timestamp: #6b7280;
+  --msg-bg-self: #1e3a5f;
+  --msg-bg-other: #1f2937;
+  --input-bg-field: #1f2937;
+  --buddy-online: #10b981;
+  --buddy-away: #f59e0b;
+  --buddy-offline: #6b7280;
 }
 [data-theme="aol-2026"] {
   font-family: var(--font-family);
@@ -33,6 +63,53 @@
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
 }
+
+/* === Global overrides for hardcoded light colors in components === */
+[data-theme="aol-2026"] .aol-app {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Override hardcoded grays in message bubbles, composers, panels */
+[data-theme="aol-2026"] [class*="chatView"] { background: var(--bg-primary) !important; }
+[data-theme="aol-2026"] [class*="messageBubble"],
+[data-theme="aol-2026"] [class*="bubble"] { background: var(--bg-tertiary) !important; color: var(--text-primary) !important; }
+[data-theme="aol-2026"] [class*="messageList"],
+[data-theme="aol-2026"] [class*="timeline"] { background: var(--bg-primary) !important; color: var(--text-primary) !important; }
+[data-theme="aol-2026"] [class*="composer"],
+[data-theme="aol-2026"] [class*="Composer"] { background: var(--bg-secondary) !important; color: var(--text-primary) !important; }
+[data-theme="aol-2026"] [class*="composer"] textarea,
+[data-theme="aol-2026"] [class*="Composer"] textarea { background: var(--bg-tertiary) !important; color: var(--text-primary) !important; border-color: var(--border-color) !important; }
+[data-theme="aol-2026"] [class*="composer"] button,
+[data-theme="aol-2026"] [class*="Composer"] button { background: var(--accent-primary) !important; color: #fff !important; }
+[data-theme="aol-2026"] [class*="roomHeader"],
+[data-theme="aol-2026"] [class*="RoomHeader"] { background: var(--bg-secondary) !important; color: var(--text-primary) !important; border-color: var(--border-color) !important; }
+[data-theme="aol-2026"] [class*="buddyList"],
+[data-theme="aol-2026"] [class*="BuddyList"] { background: var(--bg-secondary) !important; color: var(--text-primary) !important; }
+[data-theme="aol-2026"] [class*="sidebar"] { background: var(--bg-secondary) !important; }
+[data-theme="aol-2026"] [class*="statusBar"] { background: var(--bg-primary) !important; color: var(--text-secondary) !important; }
+[data-theme="aol-2026"] [class*="menuBar"] { background: var(--bg-secondary) !important; color: var(--text-primary) !important; }
+[data-theme="aol-2026"] [class*="toolbar"] { background: var(--bg-secondary) !important; border-color: var(--border-color) !important; }
+[data-theme="aol-2026"] [class*="toolBtn"] { background: var(--bg-tertiary) !important; color: var(--text-primary) !important; border-color: var(--border-color) !important; }
+[data-theme="aol-2026"] [class*="toolBtn"]:hover { background: var(--accent-primary) !important; }
+[data-theme="aol-2026"] [class*="emptyState"],
+[data-theme="aol-2026"] [class*="EmptyState"] { color: var(--text-secondary) !important; }
+[data-theme="aol-2026"] [class*="memberList"],
+[data-theme="aol-2026"] [class*="MemberList"] { background: var(--bg-secondary) !important; color: var(--text-primary) !important; }
+[data-theme="aol-2026"] [class*="searchBar"],
+[data-theme="aol-2026"] [class*="SearchBar"] { background: var(--bg-tertiary) !important; }
+[data-theme="aol-2026"] [class*="searchBar"] input,
+[data-theme="aol-2026"] [class*="SearchBar"] input { background: var(--bg-primary) !important; color: var(--text-primary) !important; }
+[data-theme="aol-2026"] [class*="roomItem"],
+[data-theme="aol-2026"] [class*="RoomItem"] { color: var(--text-primary) !important; }
+[data-theme="aol-2026"] [class*="roomItem"]:hover,
+[data-theme="aol-2026"] [class*="RoomItem"]:hover { background: var(--bg-tertiary) !important; }
+[data-theme="aol-2026"] [class*="selected"],
+[data-theme="aol-2026"] [class*="active"] { background: rgba(59, 130, 246, 0.2) !important; }
+[data-theme="aol-2026"] [class*="linkPreview"] { background: var(--bg-tertiary) !important; color: var(--text-primary) !important; border-color: var(--border-color) !important; }
+[data-theme="aol-2026"] [class*="timestamp"] { color: var(--text-muted) !important; }
+[data-theme="aol-2026"] [class*="sender"] { color: var(--accent-primary) !important; }
+[data-theme="aol-2026"] [class*="reaction"] { background: var(--bg-tertiary) !important; border-color: var(--border-color) !important; }
 [data-theme="aol-2026"] ::-webkit-scrollbar { width: 6px; }
 [data-theme="aol-2026"] ::-webkit-scrollbar-track { background: transparent; }
 [data-theme="aol-2026"] ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
