@@ -95,12 +95,17 @@ export default function MessageList({ roomId }: MessageListProps) {
     bottomRef.current?.scrollIntoView();
   }, [roomId]);
 
-  // Mark last message as read
+  // Mark last message as read (debounced, only for new messages)
+  const lastMarkedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (messages.length > 0) {
-      const last = messages[messages.length - 1];
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last.eventId === lastMarkedRef.current) return;
+    const timer = setTimeout(() => {
+      lastMarkedRef.current = last.eventId;
       invoke("mark_read", { roomId, eventId: last.eventId }).catch(() => {});
-    }
+    }, 500);
+    return () => clearTimeout(timer);
   }, [messages.length, roomId]);
 
   return (
