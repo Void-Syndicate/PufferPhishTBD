@@ -220,10 +220,12 @@ function MessageBubbleInner({ message, roomId }: MessageBubbleProps) {
     }
   };
 
-  const allMessages = useMessagesStore((s) => s.rooms[roomId]?.messages ?? []);
-  const replySource = message.replyTo
-    ? allMessages.find((m) => m.eventId === message.replyTo)
-    : null;
+  const replySource = useMessagesStore((s) => {
+    if (!message.replyTo) return null;
+    const msgs = s.rooms[roomId]?.messages;
+    if (!msgs) return null;
+    return msgs.find((m) => m.eventId === message.replyTo) ?? null;
+  });
 
   const sanitizedHtml = useMemo(() => {
     if (!message.formattedBody) return null;
