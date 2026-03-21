@@ -1,31 +1,53 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect, lazy, Suspense } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useRoomsStore, RoomSummary } from "../../stores/rooms";
 import { useAuthStore } from "../../stores/auth";
 import { useEncryptionStore } from "../../stores/encryption";
 import { useEncryption } from "../../hooks/useEncryption";
 import { useMatrixEvents } from "../../hooks/useMatrixEvents";
+import { useKeyboardShortcut } from "../../components/accessibility";
 import { soundEngine } from "../../audio/SoundEngine";
 import BuddyList from "../buddy-list/BuddyList";
 import ChatView from "../chat/ChatView";
-import SoundSettings from "../settings/SoundSettings";
-import CreateRoomDialog from "../rooms/CreateRoomDialog";
-import JoinRoomDialog from "../rooms/JoinRoomDialog";
-import RoomDirectoryDialog from "../rooms/RoomDirectoryDialog";
-import InviteDialog from "../rooms/InviteDialog";
-import PendingInvitesDialog from "../rooms/PendingInvitesDialog";
-import EncryptionSetupPanel from "../security/EncryptionSetupPanel";
-import DeviceManager from "../security/DeviceManager";
-import DeviceVerificationDialog from "../security/DeviceVerificationDialog";
-import KeyBackupDialog from "../security/KeyBackupDialog";
-import KeyExportImportDialog from "../security/KeyExportImportDialog";
-import AutoLockSettings from "../security/AutoLockSettings";
+import CallOverlay from "../calls/CallOverlay";
 import IncomingVerificationDialog from "../security/IncomingVerificationDialog";
+import { useCall } from "../../hooks/useCall";
+import { LoadingSpinner } from "../common/LoadingStates";
+import { EmptyState } from "../common/EmptyStates";
+import AccountSwitcher from "../settings/AccountSwitcher";
 import styles from "./MainShell.module.css";
 
-type DialogType = "create" | "join" | "directory" | "invite" | "invites" | "settings"
+// Lazy-loaded panels for code splitting
+const SoundSettings = lazy(() => import("../settings/SoundSettings"));
+const CreateRoomDialog = lazy(() => import("../rooms/CreateRoomDialog"));
+const JoinRoomDialog = lazy(() => import("../rooms/JoinRoomDialog"));
+const RoomDirectoryDialog = lazy(() => import("../rooms/RoomDirectoryDialog"));
+const InviteDialog = lazy(() => import("../rooms/InviteDialog"));
+const PendingInvitesDialog = lazy(() => import("../rooms/PendingInvitesDialog"));
+const EncryptionSetupPanel = lazy(() => import("../security/EncryptionSetupPanel"));
+const DeviceManager = lazy(() => import("../security/DeviceManager"));
+const DeviceVerificationDialog = lazy(() => import("../security/DeviceVerificationDialog"));
+const KeyBackupDialog = lazy(() => import("../security/KeyBackupDialog"));
+const KeyExportImportDialog = lazy(() => import("../security/KeyExportImportDialog"));
+const AutoLockSettings = lazy(() => import("../security/AutoLockSettings"));
+const CallHistory = lazy(() => import("../calls/CallHistory"));
+const PluginSettings = lazy(() => import("../settings/PluginSettings"));
+const ProxySettings = lazy(() => import("../settings/ProxySettings"));
+const SecuritySettingsPanel = lazy(() => import("../settings/SecuritySettings"));
+const UpdateSettings = lazy(() => import("../settings/UpdateSettings"));
+const SettingsExportImport = lazy(() => import("../settings/SettingsExportImport"));
+const IntegrityCheck = lazy(() => import("../settings/IntegrityCheck"));
+
+type DialogType = "create" | "join" | "directory" | "invite" | "invites" | "settings" | "plugins" | "call-history"
   | "encryption-setup" | "device-manager" | "device-verify" | "key-backup" | "key-export" | "auto-lock"
+  | "proxy" | "security-settings" | "update" | "export-import" | "integrity"
   | null;
+
+const DialogFallback = () => (
+  <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 800 }}>
+    <LoadingSpinner label="Loading..." />
+  </div>
+);
 
 export default function MainShell() {
   const { setRooms, setLoading, selectedRoomId, rooms, selectRoom } = useRoomsStore();
@@ -37,9 +59,26 @@ export default function MainShell() {
   const autoLockEnabled = useEncryptionStore((s) => s.autoLockEnabled);
 
   useMatrixEvents();
+  useCall();
+
+  // App-wide keyboard shortcuts
+  useKeyboardShortcut("k", () => setActiveDialog("directory"), { ctrl: true });
+  useKeyboardShortcut("n", () => setActiveDialog("create"), { ctrl: true });
+  useKeyboardShortcut(",", () => setActiveDialog("settings"), { ctrl: true });
+  useKeyboardShortcut("l", () => { if (autoLockEnabled) lockApp(); }, { ctrl: true });
 
   useEffect(() => {
     soundEngine.play("welcome");
+  }, []);
+
+  // Draft persistence - save drafts on unload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Graceful shutdown - flush any pending operations
+      console.log("PufferChat shutting down gracefully");
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, []);
 
   useEffect(() => {
@@ -50,15 +89,15 @@ export default function MainShell() {
       try {
         await invoke("start_sync");
         let retries = 0;
-        let rooms: RoomSummary[] = [];
+        let fetchedRooms: RoomSummary[] = [];
         while (retries < 15 && !cancelled) {
           await new Promise((r) => setTimeout(r, 1000));
-          rooms = await invoke<RoomSummary[]>("get_rooms");
-          if (rooms.length > 0) break;
+          fetchedRooms = await invoke<RoomSummary[]>("get_rooms");
+          if (fetchedRooms.length > 0) break;
           retries++;
         }
         if (!cancelled) {
-          setRooms(rooms);
+          setRooms(fetchedRooms);
         }
       } catch (err) {
         console.error("Failed to initialize sync:", err);
@@ -68,7 +107,7 @@ export default function MainShell() {
     initSync();
 
     return () => { cancelled = true; };
-  }, []);
+  }, [setRooms, setLoading]);
 
   const refreshRooms = async () => {
     try {
@@ -91,111 +130,149 @@ export default function MainShell() {
 
   const selectedRoom = rooms.find((r) => r.roomId === selectedRoomId);
 
+  // Theme toggle
+  const toggleTheme = () => {
+    const current = document.documentElement.getAttribute("data-theme") || "light";
+    const next = current === "dark" ? "light" : current === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("pufferchat_theme", next);
+  };
+
   return (
-    <div className={styles.shell}>
-      <div className={styles.menuBar}>
-        <span className={styles.menuItem}>File</span>
-        <span className={styles.menuItem}>Edit</span>
-        <span className={styles.menuItem}>People</span>
-        <span className={styles.menuItem} onClick={() => setActiveDialog("directory")}>Rooms</span>
-        <span className={styles.menuItem} onClick={() => setActiveDialog("encryption-setup")}>Security</span>
-        <span className={styles.menuItem}>Help</span>
+    <div className={styles.shell} role="application" aria-label="PufferChat">
+      <div className={styles.menuBar} role="menubar" aria-label="Main menu">
+        <span className={styles.menuItem} role="menuitem" tabIndex={0}>File</span>
+        <span className={styles.menuItem} role="menuitem" tabIndex={0}>Edit</span>
+        <span className={styles.menuItem} role="menuitem" tabIndex={0}>People</span>
+        <span className={styles.menuItem} role="menuitem" tabIndex={0} onClick={() => setActiveDialog("directory")}>Rooms</span>
+        <span className={styles.menuItem} role="menuitem" tabIndex={0} onClick={() => setActiveDialog("encryption-setup")}>Security</span>
+        <span className={styles.menuItem} role="menuitem" tabIndex={0}>Help</span>
       </div>
 
-      <div className={styles.toolbar}>
-        <button className={styles.toolBtn} onClick={() => setActiveDialog("invites")}>{"\uD83D\uDCE8"} Read</button>
-        <button className={styles.toolBtn} onClick={() => setActiveDialog("create")}>{"\u270F\uFE0F"} Write</button>
-        <button className={styles.toolBtn} onClick={() => setActiveDialog("directory")}>{"\uD83D\uDCAC"} Rooms</button>
-        <button className={styles.toolBtn} onClick={() => selectedRoomId ? setActiveDialog("invite") : null}>{"\uD83D\uDC65"} People</button>
-        <button className={styles.toolBtn} onClick={() => setActiveDialog(activeDialog === "settings" ? null : "settings")}>{"\u2699\uFE0F"} Setup</button>
-        <button className={styles.toolBtn} onClick={() => setActiveDialog("encryption-setup")}>{"\uD83D\uDD12"} Security</button>
+      <div className={styles.toolbar} role="toolbar" aria-label="Quick actions">
+        <button className={styles.toolBtn} onClick={() => setActiveDialog("invites")} aria-label="Read pending invites">{"\uD83D\uDCE8"} Read</button>
+        <button className={styles.toolBtn} onClick={() => setActiveDialog("create")} aria-label="Create new room">{"\u270F\uFE0F"} Write</button>
+        <button className={styles.toolBtn} onClick={() => setActiveDialog("directory")} aria-label="Browse rooms">{"\uD83D\uDCAC"} Rooms</button>
+        <button className={styles.toolBtn} onClick={() => selectedRoomId ? setActiveDialog("invite") : null} aria-label="Invite people">{"\uD83D\uDC65"} People</button>
+        <button className={styles.toolBtn} onClick={() => setActiveDialog(activeDialog === "settings" ? null : "settings")} aria-label="Sound settings">{"\u2699\uFE0F"} Setup</button>
+        <button className={styles.toolBtn} onClick={() => setActiveDialog(activeDialog === "plugins" ? null : "plugins")} aria-label="Plugin settings">{"\uD83E\uDDE9"} Plugins</button>
+        <button className={styles.toolBtn} onClick={() => setActiveDialog("encryption-setup")} aria-label="Security settings">{"\uD83D\uDD12"} Security</button>
+        <button className={styles.toolBtn} onClick={() => setActiveDialog("proxy")} aria-label="Proxy settings">{"\uD83C\uDF10"} Proxy</button>
+        <button className={styles.toolBtn} onClick={() => setActiveDialog("security-settings")} aria-label="Privacy settings">{"\uD83D\uDEE1\uFE0F"} Privacy</button>
+        <button className={styles.toolBtn} onClick={toggleTheme} aria-label="Toggle dark mode">{"\uD83C\uDF19"} Theme</button>
         {autoLockEnabled && (
-          <button className={styles.toolBtn} onClick={lockApp}>{"\uD83D\uDD10"} Lock</button>
+          <button className={styles.toolBtn} onClick={lockApp} aria-label="Lock application">{"\uD83D\uDD10"} Lock</button>
         )}
+        <button className={styles.toolBtn} onClick={() => setActiveDialog(activeDialog === "call-history" ? null : "call-history")} aria-label="Call history">{"\uD83D\uDCDE"} Calls</button>
         <div className={styles.toolSpacer} />
         <button className={styles.toolBtn} onClick={async () => {
           try { await invoke("matrix_logout"); } catch (e) { console.error("Logout failed:", e); }
           logout();
-        }}>{"\uD83D\uDEAA"} Sign Off</button>
+        }} aria-label="Sign out">{"\uD83D\uDEAA"} Sign Off</button>
       </div>
 
-      <div className={styles.mainContent}>
-        <div className={styles.sidebar}>
+      <div className={styles.mainContent} id="main-content" tabIndex={-1}>
+        <div className={styles.sidebar} role="navigation" aria-label="Room list">
+          <AccountSwitcher />
           <BuddyList
             onCreateRoom={() => setActiveDialog("create")}
             onJoinRoom={() => setActiveDialog("join")}
           />
         </div>
 
-        <div className={styles.chatArea}>
+        <div className={styles.chatArea} role="main" aria-label="Chat area">
           {selectedRoomId ? (
             <ChatView roomId={selectedRoomId} />
           ) : (
-            <div className={styles.welcomeMessage}>
-              <div className={styles.welcomeIcon}>{"\uD83D\uDC21"}</div>
-              <h2>Welcome, {displayName || userId}!</h2>
-              <p>You've got rooms!</p>
-              <p className={styles.welcomeHint}>
-                Select a room from the Buddy List to start chatting.
-              </p>
-            </div>
+            <EmptyState
+              icon={"\uD83D\uDC21"}
+              title={`Welcome, ${displayName || userId}!`}
+              description="You've got rooms! Select a room from the Buddy List to start chatting."
+            />
           )}
         </div>
       </div>
 
-      <div className={styles.statusBar}>
+      <div className={styles.statusBar} role="status" aria-live="polite" aria-label="Status bar">
         <span className={styles.statusItem}>Connected - {userId}</span>
         <span className={styles.statusItem}>{"\uD83D\uDD12"} E2EE Ready</span>
+        <span className={styles.statusItem} style={{ marginLeft: "auto", cursor: "pointer" }} onClick={() => setActiveDialog("update")} role="button" tabIndex={0} aria-label="Check for updates">v1.0.0</span>
       </div>
 
-      {activeDialog === "settings" && <SoundSettings onClose={() => setActiveDialog(null)} />}
-      {activeDialog === "create" && (
-        <CreateRoomDialog onClose={() => setActiveDialog(null)} onCreated={handleRoomCreated} />
-      )}
-      {activeDialog === "join" && (
-        <JoinRoomDialog onClose={() => setActiveDialog(null)} onJoined={handleRoomJoined} />
-      )}
-      {activeDialog === "directory" && (
-        <RoomDirectoryDialog onClose={() => setActiveDialog(null)} onJoined={handleRoomJoined} />
-      )}
-      {activeDialog === "invite" && selectedRoomId && (
-        <InviteDialog
-          roomId={selectedRoomId}
-          roomName={selectedRoom?.name || undefined}
-          onClose={() => setActiveDialog(null)}
-        />
-      )}
-      {activeDialog === "invites" && (
-        <PendingInvitesDialog onClose={() => setActiveDialog(null)} onAccepted={handleRoomJoined} />
-      )}
-      {activeDialog === "encryption-setup" && (
-        <EncryptionSetupPanel
-          onClose={() => setActiveDialog(null)}
-          onOpenDevices={() => setActiveDialog("device-manager")}
-          onOpenKeyBackup={() => setActiveDialog("key-backup")}
-          onOpenKeyExport={() => setActiveDialog("key-export")}
-          onOpenAutoLock={() => setActiveDialog("auto-lock")}
-        />
-      )}
-      {activeDialog === "device-manager" && (
-        <DeviceManager onClose={() => setActiveDialog("encryption-setup")} />
-      )}
-      {activeDialog === "device-verify" && userId && (
-        <DeviceVerificationDialog
-          userId={userId}
-          onClose={() => setActiveDialog("device-manager")}
-        />
-      )}
-      {activeDialog === "key-backup" && (
-        <KeyBackupDialog onClose={() => setActiveDialog("encryption-setup")} />
-      )}
-      {activeDialog === "key-export" && (
-        <KeyExportImportDialog onClose={() => setActiveDialog("encryption-setup")} />
-      )}
-      {activeDialog === "auto-lock" && (
-        <AutoLockSettings onClose={() => setActiveDialog("encryption-setup")} />
-      )}
+      <Suspense fallback={<DialogFallback />}>
+        {activeDialog === "settings" && <SoundSettings onClose={() => setActiveDialog(null)} />}
+        {activeDialog === "create" && (
+          <CreateRoomDialog onClose={() => setActiveDialog(null)} onCreated={handleRoomCreated} />
+        )}
+        {activeDialog === "join" && (
+          <JoinRoomDialog onClose={() => setActiveDialog(null)} onJoined={handleRoomJoined} />
+        )}
+        {activeDialog === "directory" && (
+          <RoomDirectoryDialog onClose={() => setActiveDialog(null)} onJoined={handleRoomJoined} />
+        )}
+        {activeDialog === "invite" && selectedRoomId && (
+          <InviteDialog
+            roomId={selectedRoomId}
+            roomName={selectedRoom?.name || undefined}
+            onClose={() => setActiveDialog(null)}
+          />
+        )}
+        {activeDialog === "invites" && (
+          <PendingInvitesDialog onClose={() => setActiveDialog(null)} onAccepted={handleRoomJoined} />
+        )}
+        {activeDialog === "encryption-setup" && (
+          <EncryptionSetupPanel
+            onClose={() => setActiveDialog(null)}
+            onOpenDevices={() => setActiveDialog("device-manager")}
+            onOpenKeyBackup={() => setActiveDialog("key-backup")}
+            onOpenKeyExport={() => setActiveDialog("key-export")}
+            onOpenAutoLock={() => setActiveDialog("auto-lock")}
+          />
+        )}
+        {activeDialog === "device-manager" && (
+          <DeviceManager onClose={() => setActiveDialog("encryption-setup")} />
+        )}
+        {activeDialog === "device-verify" && userId && (
+          <DeviceVerificationDialog
+            userId={userId}
+            onClose={() => setActiveDialog("device-manager")}
+          />
+        )}
+        {activeDialog === "key-backup" && (
+          <KeyBackupDialog onClose={() => setActiveDialog("encryption-setup")} />
+        )}
+        {activeDialog === "key-export" && (
+          <KeyExportImportDialog onClose={() => setActiveDialog("encryption-setup")} />
+        )}
+        {activeDialog === "auto-lock" && (
+          <AutoLockSettings onClose={() => setActiveDialog("encryption-setup")} />
+        )}
+        {activeDialog === "plugins" && (
+          <div style={{ position: "fixed", top: 40, right: 20, width: 420, height: 520, zIndex: 600, boxShadow: "4px 4px 0 rgba(0,0,0,0.3)", border: "2px solid", borderColor: "var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light)" }}>
+            <PluginSettings onClose={() => setActiveDialog(null)} />
+          </div>
+        )}
+        {activeDialog === "proxy" && (
+          <ProxySettings onClose={() => setActiveDialog(null)} />
+        )}
+        {activeDialog === "security-settings" && (
+          <SecuritySettingsPanel onClose={() => setActiveDialog(null)} />
+        )}
+        {activeDialog === "update" && (
+          <UpdateSettings onClose={() => setActiveDialog(null)} />
+        )}
+        {activeDialog === "export-import" && (
+          <SettingsExportImport onClose={() => setActiveDialog(null)} />
+        )}
+        {activeDialog === "integrity" && (
+          <IntegrityCheck onClose={() => setActiveDialog(null)} />
+        )}
+        {activeDialog === "call-history" && (
+          <CallHistory onClose={() => setActiveDialog(null)} />
+        )}
+      </Suspense>
       <IncomingVerificationDialog />
+      <CallOverlay />
     </div>
   );
 }

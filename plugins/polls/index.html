@@ -1,0 +1,129 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Polls</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif;
+      font-size: 11px;
+      background: #C0C0C0;
+      color: #000;
+      padding: 4px;
+    }
+    .panel {
+      border: 2px solid;
+      border-color: #FFFFFF #808080 #808080 #FFFFFF;
+      padding: 8px;
+      background: #C0C0C0;
+    }
+    .title {
+      font-weight: bold;
+      font-size: 12px;
+      color: #004B87;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .poll-card {
+      border: 2px solid;
+      border-color: #FFFFFF #808080 #808080 #FFFFFF;
+      background: white;
+      padding: 8px;
+      margin-bottom: 6px;
+    }
+    .poll-question {
+      font-weight: bold;
+      font-size: 12px;
+      color: #004B87;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #D0D0D0;
+    }
+    .poll-option {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+      cursor: pointer;
+      padding: 3px;
+      border: 1px solid transparent;
+    }
+    .poll-option:hover {
+      background: #E8F0FF;
+      border-color: #B0C0D0;
+    }
+    .poll-option.voted {
+      background: #E0FFE0;
+      border-color: #80C080;
+    }
+    .vote-btn {
+      width: 16px;
+      height: 16px;
+      border: 2px solid;
+      border-color: #808080 #FFFFFF #FFFFFF #808080;
+      background: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+    .vote-btn.checked {
+      background: #004B87;
+      color: white;
+    }
+    .option-text { flex: 1; font-size: 11px; }
+    .option-bar-container {
+      width: 80px;
+      height: 12px;
+      background: #E0E0E0;
+      border: 1px solid #B0B0B0;
+      flex-shrink: 0;
+    }
+    .option-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #004B87, #0066BB);
+      transition: width 0.3s ease;
+    }
+    .option-count {
+      font-size: 10px;
+      color: #666;
+      min-width: 30px;
+      text-align: right;
+    }
+    .poll-footer {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #888;
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid #E0E0E0;
+    }
+    .no-polls {
+      text-align: center;
+      color: #888;
+      padding: 16px;
+    }
+    .info {
+      font-size: 9px;
+      color: #666;
+      text-align: center;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="title">&#x1F4CA; Polls</div>
+    <div id="polls-container">
+      <div class="no-polls">No active polls. Use /poll "Question" "Option1" "Option2" ... to create one.</div>
+    </div>
+    <div class="info">One vote per user per poll &bull; Results update in real-time</div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

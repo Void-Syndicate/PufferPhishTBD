@@ -1,9 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { useRoomsStore } from "../../stores/rooms";
 import { RoomEncryptionStatus } from "../../stores/encryption";
 import { useEncryption } from "../../hooks/useEncryption";
 import MediaGallery from "./MediaGallery";
 import RoomSettingsPanel from "../rooms/RoomSettingsPanel";
+import CallButton from "../calls/CallButton";
+import { WidgetPicker } from '../../plugins/widgets/WidgetContainer';
+import IntegrationManager from '../../plugins/integrations/IntegrationManager';
 import styles from "./RoomHeader.module.css";
 
 interface RoomHeaderProps {
@@ -50,6 +53,8 @@ export default function RoomHeader({ roomId, onToggleMembers, showMembers }: Roo
   const [showEncPopup, setShowEncPopup] = useState(false);
   const [showMediaGallery, setShowMediaGallery] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showWidgetPicker, setShowWidgetPicker] = useState(false);
+  const [showIntegrations, setShowIntegrations] = useState(false);
 
   const handleEncryptionClick = useCallback(async () => {
     if (showEncPopup) {
@@ -78,10 +83,10 @@ export default function RoomHeader({ roomId, onToggleMembers, showMembers }: Roo
       <span className={styles.roomName}>{room.name || room.roomId}</span>
       {room.topic && <span className={styles.topic}>{room.topic}</span>}
       <div className={styles.roomMeta}>
-        {room.isEncrypted && (
-          <span
+        <CallButton roomId={roomId} />
+        {room.isEncrypted && (          <span
             className={styles.encryptedBadge}
-            title="Encrypted — click for details"
+            title="Encrypted â€” click for details"
             onClick={handleEncryptionClick}
           >
             &#x1F512;
@@ -89,17 +94,31 @@ export default function RoomHeader({ roomId, onToggleMembers, showMembers }: Roo
         )}
         <button
           className={styles.membersBtn}
+          onClick={() => setShowWidgetPicker(!showWidgetPicker)}
+          title="Room widgets"
+        >
+          &#x1F4C4; Widgets
+        </button>
+        <button
+          className={styles.membersBtn}
+          onClick={() => setShowIntegrations(!showIntegrations)}
+          title="Integrations"
+        >
+          &#x1F527; Integrations
+        </button>
+        <button
+          className={styles.membersBtn}
           onClick={() => setShowSettings(true)}
           title="Room settings"
         >
-          ⚙️ Settings
+          âš™ï¸ Settings
         </button>
         <button
           className={styles.membersBtn}
           onClick={() => setShowMediaGallery(true)}
           title="Media gallery"
         >
-          🖼️ Media
+          ðŸ–¼ï¸ Media
         </button>
         <button
           className={membersBtnClass}
@@ -117,6 +136,12 @@ export default function RoomHeader({ roomId, onToggleMembers, showMembers }: Roo
       )}
       {showMediaGallery && (
         <MediaGallery roomId={roomId} onClose={() => setShowMediaGallery(false)} />
+      )}
+      {showWidgetPicker && (
+        <WidgetPicker roomId={roomId} onClose={() => setShowWidgetPicker(false)} />
+      )}
+      {showIntegrations && (
+        <IntegrationManager roomId={roomId} onClose={() => setShowIntegrations(false)} />
       )}
     </div>
   );

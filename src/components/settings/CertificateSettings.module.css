@@ -1,0 +1,444 @@
+﻿.panel {
+  font-family: var(--font-system);
+  font-size: 11px;
+  padding: 8px;
+}
+
+.tofuWarning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 10px;
+  background: #FFFFF0;
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+}
+
+.tofuIcon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.tofuText {
+  font-size: 10px;
+  color: #444;
+  line-height: 1.4;
+}
+
+.errorMsg {
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  background: #FFCCCC;
+  border: 1px solid #CC0000;
+  color: #CC0000;
+  font-size: 10px;
+}
+
+.statusMsg {
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  background: #CCFFCC;
+  border: 1px solid #008800;
+  color: #008800;
+  font-size: 10px;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 4px 0;
+}
+
+.certCount {
+  font-size: 10px;
+  color: #666;
+}
+
+.addBtn {
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 2px 10px;
+  background: #CCDDFF;
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  cursor: pointer;
+  color: var(--aol-blue-dark, #004B87);
+}
+
+.addBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.addForm {
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  padding: 8px;
+  margin-bottom: 8px;
+  background: #F8F8FF;
+}
+
+.addFormRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.addLabel {
+  font-size: 10px;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.addInput {
+  flex: 1;
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 2px 4px;
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  background: var(--input-bg, #fff);
+}
+
+.fetchBtn {
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 2px 10px;
+  background: var(--win-bg, #C0C0C0);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  cursor: pointer;
+}
+
+.fetchBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.fetchBtn:disabled {
+  color: #808080;
+  cursor: default;
+}
+
+.fetchedCertPreview {
+  margin-top: 8px;
+  padding: 8px;
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  background: #fff;
+}
+
+.previewTitle {
+  font-weight: bold;
+  font-size: 11px;
+  margin-bottom: 6px;
+  color: var(--aol-blue-dark, #004B87);
+}
+
+.previewRow {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 10px;
+  border-bottom: 1px solid #E8E8E8;
+}
+
+.previewRow:last-of-type {
+  border-bottom: none;
+}
+
+.previewLabel {
+  font-weight: bold;
+  min-width: 60px;
+  color: #444;
+}
+
+.previewValue {
+  color: var(--aol-black, #000);
+  word-break: break-all;
+}
+
+.previewValueMono {
+  font-family: monospace;
+  font-size: 9px;
+  color: var(--aol-black, #000);
+  word-break: break-all;
+}
+
+.previewActions {
+  margin-top: 8px;
+  text-align: right;
+}
+
+.pinBtn {
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 3px 12px;
+  background: #CCFFCC;
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  cursor: pointer;
+  color: #006600;
+  font-weight: bold;
+}
+
+.pinBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.loadingState {
+  text-align: center;
+  padding: 24px;
+  color: #808080;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 20px;
+  color: #888;
+}
+
+.emptyIcon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.emptyHint {
+  font-size: 9px;
+  color: #AAA;
+  margin-top: 4px;
+}
+
+.certTable {
+  max-height: 200px;
+  overflow: auto;
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  margin-bottom: 8px;
+}
+
+.certTable table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+}
+
+.certTable thead tr {
+  background: #000080;
+  color: #fff;
+  position: sticky;
+  top: 0;
+}
+
+.certTable th {
+  padding: 3px 6px;
+  text-align: left;
+  font-weight: bold;
+  font-size: 10px;
+}
+
+.certTable td {
+  padding: 3px 6px;
+  border-bottom: 1px solid #D0D0D0;
+}
+
+.certTable tbody tr:hover {
+  background: #E8F0FF;
+  cursor: pointer;
+}
+
+.selectedRow {
+  background: #D0E0FF !important;
+}
+
+.hostCell {
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.autoBadge {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  text-align: center;
+  font-size: 8px;
+  font-weight: bold;
+  background: #E0E8F0;
+  border: 1px solid #B0C0D0;
+  border-radius: 2px;
+  color: var(--aol-blue-dark, #004B87);
+  margin-right: 4px;
+}
+
+.fpCell {
+  font-family: monospace;
+  font-size: 9px;
+  color: #555;
+}
+
+.dateCell {
+  white-space: nowrap;
+  color: #666;
+}
+
+.actionCell {
+  text-align: center;
+}
+
+.removeBtn {
+  font-family: var(--font-system);
+  font-size: 9px;
+  padding: 1px 8px;
+  background: #FFCCCC;
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  cursor: pointer;
+  color: #CC0000;
+}
+
+.removeBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.detailPanel {
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  padding: 8px;
+  margin-bottom: 8px;
+  background: #FAFAFA;
+}
+
+.detailTitle {
+  font-weight: bold;
+  font-size: 11px;
+  color: var(--aol-blue-dark, #004B87);
+  margin-bottom: 6px;
+}
+
+.detailRow {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 10px;
+  border-bottom: 1px solid #E8E8E8;
+}
+
+.detailRow:last-child {
+  border-bottom: none;
+}
+
+.detailLabel {
+  font-weight: bold;
+  color: var(--aol-blue-dark, #004B87);
+  min-width: 60px;
+}
+
+.detailValue {
+  color: var(--aol-black, #000);
+  word-break: break-all;
+}
+
+.detailValueMono {
+  font-family: monospace;
+  font-size: 9px;
+  color: var(--aol-black, #000);
+  word-break: break-all;
+}
+
+.confirmOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.confirmDialog {
+  background: var(--win-bg, #C0C0C0);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3);
+  padding: 16px;
+  min-width: 280px;
+  text-align: center;
+  font-family: var(--font-system);
+  font-size: 11px;
+}
+
+.confirmIcon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.confirmText {
+  margin-bottom: 6px;
+}
+
+.confirmWarning {
+  font-size: 9px;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.confirmButtons {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.confirmYes {
+  font-family: var(--font-system);
+  font-size: 11px;
+  padding: 3px 16px;
+  background: #FFCCCC;
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  cursor: pointer;
+  color: #CC0000;
+  font-weight: bold;
+}
+
+.confirmYes:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.confirmNo {
+  font-family: var(--font-system);
+  font-size: 11px;
+  padding: 3px 16px;
+  background: var(--win-bg, #C0C0C0);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  cursor: pointer;
+}
+
+.confirmNo:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.closeBtn {
+  font-family: var(--font-system);
+  font-size: 11px;
+  padding: 3px 16px;
+  background: var(--win-bg, #C0C0C0);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  cursor: pointer;
+}
+
+.closeBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}

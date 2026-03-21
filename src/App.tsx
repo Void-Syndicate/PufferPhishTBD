@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAuthStore } from "./stores/auth";
 import { useEncryptionStore } from "./stores/encryption";
@@ -6,6 +6,9 @@ import { useEncryption } from "./hooks/useEncryption";
 import LoginScreen from "./components/login/LoginScreen";
 import MainShell from "./components/shell/MainShell";
 import LockScreen from "./components/security/LockScreen";
+import { ErrorBoundary } from "./components/common/ErrorBoundary";
+import { SkipNavLink } from "./components/accessibility/SkipNavLink";
+import "./themes/aol-dark/dark.css";
 
 interface LoginResponse {
   userId: string;
@@ -22,6 +25,12 @@ function App() {
   const autoLockEnabled = useEncryptionStore((s) => s.autoLockEnabled);
   const { checkLockState } = useEncryption();
 
+  // Theme management
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("pufferchat_theme") || "light";
+    document.documentElement.setAttribute("data-theme", savedTheme);
+  }, []);
+
   // Try to restore saved session on startup
   useEffect(() => {
     async function tryRestore() {
@@ -30,7 +39,7 @@ function App() {
         if (result) {
           login({
             userId: result.userId,
-            homeserver: "", // restored server-side
+            homeserver: "",
             displayName: result.displayName,
             deviceId: result.deviceId,
           });
@@ -42,20 +51,34 @@ function App() {
       }
     }
     tryRestore();
-  }, []);
+  }, [login]);
 
   // Check lock state after login
   useEffect(() => {
     if (isLoggedIn) {
       checkLockState();
     }
+  }, [isLoggedIn, checkLockState]);
+
+  // Run integrity check on startup
+  useEffect(() => {
+    if (isLoggedIn) {
+      invoke("check_integrity")
+        .then((report: unknown) => {
+          const r = report as { databaseOk: boolean; cryptoKeysOk: boolean; issues: string[] };
+          if (!r.databaseOk || !r.cryptoKeysOk) {
+            console.warn("Integrity issues detected:", r.issues);
+          }
+        })
+        .catch(() => {});
+    }
   }, [isLoggedIn]);
 
   if (checking) {
     return (
-      <div className="aol-app" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#008080" }}>
+      <div className="aol-app" role="status" aria-live="polite" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "#008080" }}>
         <div style={{ color: "white", fontFamily: "monospace", fontSize: "18px" }}>
-          🐡 Restoring session...
+          {"\u231B"} Restoring session...
         </div>
       </div>
     );
@@ -64,16 +87,21 @@ function App() {
   // Show lock screen if logged in and locked
   if (isLoggedIn && autoLockEnabled && isLocked) {
     return (
-      <div className="aol-app">
-        <LockScreen onUnlocked={() => useEncryptionStore.getState().setIsLocked(false)} />
-      </div>
+      <ErrorBoundary>
+        <div className="aol-app">
+          <LockScreen onUnlocked={() => useEncryptionStore.getState().setIsLocked(false)} />
+        </div>
+      </ErrorBoundary>
     );
   }
 
   return (
-    <div className="aol-app">
-      {isLoggedIn ? <MainShell /> : <LoginScreen />}
-    </div>
+    <ErrorBoundary>
+      <div className="aol-app">
+        <SkipNavLink targetId="main-content" label="Skip to main content" />
+        {isLoggedIn ? <MainShell /> : <LoginScreen />}
+      </div>
+    </ErrorBoundary>
   );
 }
 

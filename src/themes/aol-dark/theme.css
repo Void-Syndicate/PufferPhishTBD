@@ -1,0 +1,167 @@
+/* PufferChat — AOL Dark Theme */
+:root[data-theme="aol-dark"] {
+  /* Core colors */
+  --color-bg: #1a1a2e;
+  --color-bg-secondary: #16213e;
+  --color-bg-tertiary: #0f3460;
+  --color-surface: #1a1a2e;
+  --color-surface-hover: #16213e;
+  --color-surface-active: #0f3460;
+
+  /* Text */
+  --color-text: #e0e0e0;
+  --color-text-secondary: #a0a0b0;
+  --color-text-muted: #606080;
+  --color-text-link: #4da6ff;
+
+  /* Brand / AOL Blue adapted for dark */
+  --color-primary: #1a8cff;
+  --color-primary-hover: #4da6ff;
+  --color-primary-dark: #0066cc;
+
+  /* Borders — inverted bevels for dark theme */
+  --color-border-light: #2a2a4e;
+  --color-border-dark: #0a0a1e;
+  --color-border: #333355;
+
+  /* Window chrome */
+  --color-titlebar: linear-gradient(90deg, #0a0a3e, #1a1a6e);
+  --color-titlebar-text: #e0e0ff;
+  --color-titlebar-inactive: linear-gradient(90deg, #1a1a2e, #2a2a3e);
+
+  /* Buttons */
+  --color-button: #2a2a4e;
+  --color-button-hover: #3a3a5e;
+  --color-button-border-tl: #3a3a5e;
+  --color-button-border-br: #0a0a1e;
+  --color-button-text: #e0e0e0;
+
+  /* Input fields */
+  --color-input-bg: #0f0f2e;
+  --color-input-border-tl: #0a0a1e;
+  --color-input-border-br: #3a3a5e;
+  --color-input-text: #e0e0e0;
+  --color-input-placeholder: #505070;
+
+  /* Scrollbar */
+  --color-scrollbar-track: #1a1a2e;
+  --color-scrollbar-thumb: #3a3a5e;
+  --color-scrollbar-thumb-hover: #4a4a6e;
+
+  /* Buddy List */
+  --color-buddy-online: #00ff88;
+  --color-buddy-away: #ffaa00;
+  --color-buddy-offline: #555577;
+  --color-buddy-idle: #aa88ff;
+
+  /* Chat */
+  --color-message-bg: #16213e;
+  --color-message-bg-self: #0f3460;
+  --color-message-bg-hover: #1a2a4e;
+  --color-timestamp: #505070;
+  --color-sender: #4da6ff;
+
+  /* Notifications */
+  --color-unread-badge: #ff4444;
+  --color-mention-badge: #ff8800;
+
+  /* Status indicators */
+  --color-encrypted: #00cc66;
+  --color-unencrypted: #ff4444;
+  --color-verified: #00cc66;
+
+  /* Fieldset */
+  --color-fieldset-border-tl: #333355;
+  --color-fieldset-border-br: #0a0a1e;
+
+  /* Misc */
+  --color-error: #ff4444;
+  --color-success: #00cc66;
+  --color-warning: #ffaa00;
+  --color-info: #4da6ff;
+  --color-shadow: rgba(0, 0, 0, 0.5);
+
+  /* CRT glow effect */
+  --glow-color: rgba(26, 140, 255, 0.15);
+  --glow-text: 0 0 8px rgba(77, 166, 255, 0.3);
+}
+
+/* Dark theme overrides */
+:root[data-theme="aol-dark"] body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+:root[data-theme="aol-dark"] input,
+:root[data-theme="aol-dark"] textarea,
+:root[data-theme="aol-dark"] select {
+  background: var(--color-input-bg);
+  color: var(--color-input-text);
+  border-color: var(--color-input-border-tl);
+}
+
+:root[data-theme="aol-dark"] button {
+  background: var(--color-button);
+  color: var(--color-button-text);
+  border-color: var(--color-button-border-tl) var(--color-button-border-br) var(--color-button-border-br) var(--color-button-border-tl);
+}
+
+:root[data-theme="aol-dark"] button:hover {
+  background: var(--color-button-hover);
+}
+
+:root[data-theme="aol-dark"] fieldset {
+  border-color: var(--color-fieldset-border-tl) var(--color-fieldset-border-br) var(--color-fieldset-border-br) var(--color-fieldset-border-tl);
+}
+
+:root[data-theme="aol-dark"] ::-webkit-scrollbar {
+  width: 14px;
+}
+
+:root[data-theme="aol-dark"] ::-webkit-scrollbar-track {
+  background: var(--color-scrollbar-track);
+}
+
+:root[data-theme="aol-dark"] ::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar-thumb);
+  border: 1px solid var(--color-border);
+}
+
+:root[data-theme="aol-dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-thumb-hover);
+}
+
+/* High contrast overrides */
+:root.high-contrast {
+  --color-text: #ffffff !important;
+  --color-bg: #000000 !important;
+  --color-border: #ffffff !important;
+  --color-primary: #ffff00 !important;
+  --color-text-link: #00ffff !important;
+}
+
+:root.high-contrast button {
+  border: 2px solid #ffffff !important;
+  outline: none;
+}
+
+:root.high-contrast button:focus {
+  outline: 3px solid #ffff00 !important;
+}
+
+/* Reduced motion */
+:root.reduced-motion * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Focus visible mode — show focus rings only on keyboard nav */
+:root.focus-visible-mode *:focus {
+  outline: 2px solid var(--color-primary, #004B87);
+  outline-offset: 2px;
+}
+
+:root:not(.focus-visible-mode) *:focus {
+  outline: none;
+}

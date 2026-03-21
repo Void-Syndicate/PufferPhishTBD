@@ -1,0 +1,109 @@
+﻿/* ============================================
+   PufferChat — AOL Dark Theme
+   Dark mode variant of the classic AOL aesthetic
+   ============================================ */
+
+[data-theme="dark"] {
+  /* === AOL Color Palette (Dark) === */
+  --aol-blue: #1a6bb5;
+  --aol-blue-light: #3399ff;
+  --aol-blue-dark: #0a3d6b;
+  --aol-yellow: #FFD700;
+  --aol-white: #E0E0E0;
+  --aol-gray-light: #3a3a3a;
+  --aol-gray-medium: #808080;
+  --aol-gray-dark: #B0B0B0;
+  --aol-black: #E0E0E0;
+
+  /* === Window Chrome (Dark) === */
+  --win-bg: #2d2d2d;
+  --win-titlebar: #1a1a4e;
+  --win-titlebar-text: #FFFFFF;
+  --win-titlebar-inactive: #404040;
+  --win-border-light: #505050;
+  --win-border-dark: #1a1a1a;
+  --win-border-shadow: #333333;
+
+  /* === Input Fields (Dark) === */
+  --input-bg: #1e1e1e;
+  --input-text: #E0E0E0;
+
+  /* === Buddy List (Dark) === */
+  --buddy-online: #00CC00;
+  --buddy-away: #DDBB00;
+  --buddy-offline: #606060;
+  --buddy-idle: #DD9900;
+
+  /* === Chat (Dark) === */
+  --chat-bg: #1e1e1e;
+  --chat-sent: #6699CC;
+  --chat-received: #D0D0D0;
+  --chat-system: #707070;
+  --chat-link: #6699FF;
+  --chat-timestamp: #666666;
+
+  /* === Status Bar (Dark) === */
+  --statusbar-bg: #2d2d2d;
+  --statusbar-text: #B0B0B0;
+}
+
+[data-theme="dark"] body {
+  background: #2d2d2d;
+  color: #E0E0E0;
+}
+
+[data-theme="dark"] ::selection {
+  background: #3399ff;
+  color: #fff;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #2d2d2d;
+  border: 1px solid #333;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #3a3a3a;
+  border: 2px solid;
+  border-color: #505050 #1a1a1a #1a1a1a #505050;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-button {
+  background: #3a3a3a;
+  border: 2px solid;
+  border-color: #505050 #1a1a1a #1a1a1a #505050;
+}
+
+/* High contrast mode */
+[data-theme="high-contrast"] {
+  --aol-blue: #0000FF;
+  --aol-blue-light: #0066FF;
+  --aol-yellow: #FFFF00;
+  --aol-white: #FFFFFF;
+  --aol-gray-light: #C0C0C0;
+  --aol-gray-medium: #808080;
+  --aol-gray-dark: #000000;
+  --aol-black: #000000;
+  --win-bg: #FFFFFF;
+  --win-titlebar: #000000;
+  --win-titlebar-text: #FFFFFF;
+  --win-border-light: #000000;
+  --win-border-dark: #000000;
+  --chat-bg: #FFFFFF;
+  --chat-sent: #0000FF;
+  --chat-received: #000000;
+  --input-bg: #FFFFFF;
+  --input-text: #000000;
+}
+
+[data-theme="high-contrast"] * {
+  border-color: #000 !important;
+}
+
+[data-theme="high-contrast"] button:focus,
+[data-theme="high-contrast"] a:focus,
+[data-theme="high-contrast"] input:focus,
+[data-theme="high-contrast"] textarea:focus {
+  outline: 3px solid #FFFF00 !important;
+  outline-offset: 2px;
+}

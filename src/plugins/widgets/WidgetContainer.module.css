@@ -1,0 +1,144 @@
+﻿.widgetFrame {
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  background: var(--win-bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin: 4px;
+}
+
+.widgetTitleBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 6px;
+  background: linear-gradient(180deg, var(--aol-blue), var(--aol-blue-dark));
+  color: var(--aol-white);
+  font-family: var(--font-system);
+  font-size: 10px;
+  font-weight: bold;
+  min-height: 20px;
+}
+
+.widgetTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.widgetTitleBtns {
+  display: flex;
+  gap: 2px;
+}
+
+.widgetBtn {
+  background: var(--win-bg);
+  border: 1px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  color: var(--aol-black);
+  font-family: var(--font-system);
+  font-size: 9px;
+  padding: 0 4px;
+  cursor: pointer;
+  line-height: 14px;
+}
+
+.widgetBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.widgetContent {
+  flex: 1;
+  background: white;
+  overflow: hidden;
+}
+
+.widgetContent iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.widgetPicker {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 400;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.3);
+  min-width: 200px;
+  font-family: var(--font-system);
+  padding: 4px;
+}
+
+.widgetPickerTitle {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 4px;
+  color: var(--aol-blue-dark);
+  border-bottom: 1px solid #D0D0D0;
+  margin-bottom: 4px;
+}
+
+.widgetPickerItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.widgetPickerItem:hover {
+  background: #E0E8F0;
+  border-color: #B0C0D0;
+}
+
+.widgetPickerIcon {
+  font-size: 14px;
+}
+
+.widgetPickerEmpty {
+  font-size: 10px;
+  color: #888;
+  padding: 6px;
+  text-align: center;
+}
+
+.addWidgetInput {
+  width: 100%;
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 2px 4px;
+  margin-top: 4px;
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  background: var(--input-bg);
+  box-sizing: border-box;
+}
+
+.widgetPickerActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.widgetPickerBtn {
+  font-family: var(--font-system);
+  font-size: 9px;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.widgetPickerBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}

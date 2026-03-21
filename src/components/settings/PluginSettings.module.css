@@ -1,0 +1,279 @@
+﻿.panel {
+  font-family: var(--font-system);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: linear-gradient(180deg, var(--aol-blue), var(--aol-blue-dark));
+  color: var(--aol-white);
+  font-size: 12px;
+  font-weight: bold;
+  border-bottom: 2px solid var(--win-border-dark);
+}
+
+.headerRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.closeBtn {
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  color: var(--aol-black);
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+
+.closeBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.section {
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.sectionTitle {
+  font-size: 11px;
+  font-weight: bold;
+  margin-bottom: 6px;
+  color: var(--aol-blue-dark);
+}
+
+.pluginCard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid #D0D0D0;
+  margin-bottom: 4px;
+  background: var(--aol-white);
+}
+
+.pluginCardSelected {
+  composes: pluginCard;
+  border-color: var(--aol-blue);
+  background: #E8F0FF;
+}
+
+.pluginIcon {
+  width: 32px;
+  height: 32px;
+  background: var(--win-bg);
+  border: 1px solid #C0C0C0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.pluginInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.pluginName {
+  font-weight: bold;
+  font-size: 11px;
+  color: var(--aol-black);
+}
+
+.pluginVersion {
+  font-size: 9px;
+  color: #888;
+  margin-left: 4px;
+}
+
+.pluginDesc {
+  font-size: 10px;
+  color: #555;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pluginAuthor {
+  font-size: 9px;
+  color: #888;
+}
+
+.pluginActions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.toggleBtn {
+  font-family: var(--font-system);
+  font-size: 9px;
+  background: var(--win-bg);
+  border: 2px solid;
+  border-color: var(--win-border-light) var(--win-border-dark) var(--win-border-dark) var(--win-border-light);
+  padding: 2px 8px;
+  cursor: pointer;
+  min-width: 55px;
+  text-align: center;
+}
+
+.toggleBtn:active {
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.toggleBtnEnabled {
+  composes: toggleBtn;
+  background: #CCFFCC;
+  color: #006600;
+}
+
+.toggleBtnDisabled {
+  composes: toggleBtn;
+  background: #FFCCCC;
+  color: #CC0000;
+}
+
+.removeBtn {
+  composes: toggleBtn;
+  background: #FFCCCC;
+  color: #CC0000;
+  font-size: 9px;
+}
+
+.detailPanel {
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  background: var(--aol-white);
+  padding: 8px;
+  margin-top: 8px;
+}
+
+.detailRow {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  font-size: 10px;
+  border-bottom: 1px solid #E8E8E8;
+}
+
+.detailRow:last-child {
+  border-bottom: none;
+}
+
+.detailLabel {
+  font-weight: bold;
+  color: var(--aol-blue-dark);
+  min-width: 80px;
+}
+
+.detailValue {
+  color: var(--aol-black);
+  word-break: break-all;
+}
+
+.permissionBadge {
+  display: inline-block;
+  padding: 1px 5px;
+  margin: 1px 2px;
+  font-size: 9px;
+  background: #E0E8F0;
+  border: 1px solid #B0C0D0;
+  border-radius: 2px;
+  color: var(--aol-blue-dark);
+}
+
+.installBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.installInput {
+  flex: 1;
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 3px 6px;
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+  background: var(--input-bg);
+}
+
+.installBtn {
+  composes: toggleBtn;
+  background: #CCDDFF;
+  color: var(--aol-blue-dark);
+}
+
+.emptyState {
+  text-align: center;
+  padding: 20px;
+  font-size: 11px;
+  color: #888;
+}
+
+.emptyIcon {
+  font-size: 32px;
+  margin-bottom: 8px;
+}
+
+.devModeRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  padding: 4px 0;
+}
+
+.devBadge {
+  display: inline-block;
+  padding: 1px 6px;
+  font-size: 9px;
+  background: #FFEECC;
+  border: 1px solid #DDCC88;
+  border-radius: 2px;
+  color: #886600;
+  font-weight: bold;
+}
+
+.statusMsg {
+  font-size: 10px;
+  color: #008800;
+  margin-top: 4px;
+}
+
+.errorMsg {
+  font-size: 10px;
+  color: #CC0000;
+  margin-top: 4px;
+}
+
+.commandList {
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+.commandItem {
+  padding: 2px 4px;
+  font-family: monospace;
+  font-size: 10px;
+  color: var(--aol-blue-dark);
+}

@@ -1,6 +1,6 @@
-[package]
+﻿[package]
 name = "pufferchat"
-version = "0.1.0"
+version = "1.0.0"
 description = "Secure Matrix client with retro AOL aesthetic"
 authors = ["Void Syndicate"]
 edition = "2021"
@@ -46,8 +46,12 @@ mime = "0.3"
 reqwest = { version = "0.12", features = ["json"] }
 
 # Force bundled SQLite (avoids needing system sqlite3.lib)
+urlencoding = "2"
+lazy_static = "1"
 libsqlite3-sys = { version = "0.30", features = ["bundled"] }
 
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+

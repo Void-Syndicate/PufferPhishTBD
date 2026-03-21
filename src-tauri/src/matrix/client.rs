@@ -348,7 +348,8 @@ impl MatrixClient {
         &self,
         app_handle: tauri::AppHandle,
     ) -> Result<(), AppError> {
-        let settings = SyncSettings::default();
+        let settings = SyncSettings::default()
+            .timeout(std::time::Duration::from_secs(30));
         let client = self.client.clone();
 
         // Timeline message handler
@@ -549,6 +550,105 @@ impl MatrixClient {
             },
         );
 
+        // VoIP Call Event Handlers (Phase 6)
+        // m.call.invite handler
+        let handle_clone = app_handle.clone();
+        client.add_event_handler(
+            move |event: matrix_sdk::ruma::events::call::invite::SyncCallInviteEvent, room: Room| {
+                let handle = handle_clone.clone();
+                async move {
+                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) = event {
+                        let sdp = original.content.offer.sdp.clone();
+                        let is_video = sdp.contains("m=video");
+                        let payload = crate::matrix::voip::CallInviteEvent {
+                            room_id: room.room_id().to_string(),
+                            call_id: original.content.call_id.to_string(),
+                            sender: original.sender.to_string(),
+                            sender_display_name: None,
+                            sdp,
+                            is_video,
+                            lifetime_ms: original.content.lifetime.as_millis() as u64,
+                            party_id: original.content.party_id.as_ref().map(|p| p.to_string()).unwrap_or_default(),
+                        };
+                        if let Err(e) = handle.emit("matrix://call-invite", &payload) {
+                            log::error!("Failed to emit call invite event: {}", e);
+                        }
+                    }
+                }
+            },
+        );
+
+        // m.call.answer handler
+        let handle_clone = app_handle.clone();
+        client.add_event_handler(
+            move |event: matrix_sdk::ruma::events::call::answer::SyncCallAnswerEvent, room: Room| {
+                let handle = handle_clone.clone();
+                async move {
+                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) = event {
+                        let payload = crate::matrix::voip::CallAnswerEvent {
+                            room_id: room.room_id().to_string(),
+                            call_id: original.content.call_id.to_string(),
+                            sender: original.sender.to_string(),
+                            sdp: original.content.answer.sdp.clone(),
+                            party_id: original.content.party_id.as_ref().map(|p| p.to_string()).unwrap_or_default(),
+                        };
+                        if let Err(e) = handle.emit("matrix://call-answer", &payload) {
+                            log::error!("Failed to emit call answer event: {}", e);
+                        }
+                    }
+                }
+            },
+        );
+
+        // m.call.candidates handler
+        let handle_clone = app_handle.clone();
+        client.add_event_handler(
+            move |event: matrix_sdk::ruma::events::call::candidates::SyncCallCandidatesEvent, room: Room| {
+                let handle = handle_clone.clone();
+                async move {
+                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) = event {
+                        let candidates: Vec<crate::matrix::voip::IceCandidate> = original.content.candidates.iter().map(|c| {
+                            crate::matrix::voip::IceCandidate {
+                                candidate: c.candidate.clone(),
+                                sdp_mid: c.sdp_mid.clone(),
+                                sdp_m_line_index: c.sdp_m_line_index.map(|v| u64::from(v) as u32),
+                            }
+                        }).collect();
+                        let payload = crate::matrix::voip::CallCandidatesEvent {
+                            room_id: room.room_id().to_string(),
+                            call_id: original.content.call_id.to_string(),
+                            sender: original.sender.to_string(),
+                            candidates,
+                        };
+                        if let Err(e) = handle.emit("matrix://call-candidates", &payload) {
+                            log::error!("Failed to emit call candidates event: {}", e);
+                        }
+                    }
+                }
+            },
+        );
+
+        // m.call.hangup handler
+        let handle_clone = app_handle.clone();
+        client.add_event_handler(
+            move |event: matrix_sdk::ruma::events::call::hangup::SyncCallHangupEvent, room: Room| {
+                let handle = handle_clone.clone();
+                async move {
+                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) = event {
+                        let reason = original.content.reason.as_ref().map(|r| format!("{:?}", r));
+                        let payload = crate::matrix::voip::CallHangupEvent {
+                            room_id: room.room_id().to_string(),
+                            call_id: original.content.call_id.to_string(),
+                            sender: original.sender.to_string(),
+                            reason,
+                        };
+                        if let Err(e) = handle.emit("matrix://call-hangup", &payload) {
+                            log::error!("Failed to emit call hangup event: {}", e);
+                        }
+                    }
+                }
+            },
+        );
         let app_handle_sync = app_handle.clone();
         tokio::spawn(async move {
             loop {
@@ -1752,5 +1852,7 @@ pub struct BannedUser {
     pub user_id: String,
     pub reason: Option<String>,
 }
+
+
 
 

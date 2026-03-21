@@ -1,0 +1,208 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Paste</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif;
+      font-size: 11px;
+      background: #C0C0C0;
+      color: #000;
+      padding: 4px;
+    }
+    .panel {
+      border: 2px solid;
+      border-color: #FFFFFF #808080 #808080 #FFFFFF;
+      padding: 8px;
+      background: #C0C0C0;
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 8px);
+    }
+    .title {
+      font-weight: bold;
+      font-size: 12px;
+      color: #004B87;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+    .toolbar {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 6px;
+      align-items: center;
+    }
+    .toolbar label {
+      font-size: 10px;
+      font-weight: bold;
+    }
+    .toolbar select, .toolbar input {
+      font-family: 'MS Sans Serif', sans-serif;
+      font-size: 10px;
+      padding: 2px 4px;
+      border: 2px solid;
+      border-color: #808080 #FFFFFF #FFFFFF #808080;
+      background: white;
+    }
+    .btn {
+      font-family: 'MS Sans Serif', sans-serif;
+      font-size: 10px;
+      background: #C0C0C0;
+      border: 2px solid;
+      border-color: #FFFFFF #808080 #808080 #FFFFFF;
+      padding: 3px 10px;
+      cursor: pointer;
+    }
+    .btn:active {
+      border-color: #808080 #FFFFFF #FFFFFF #808080;
+    }
+    .btn-send {
+      background: #CCDDFF;
+      color: #004B87;
+      font-weight: bold;
+    }
+    .btn-copy {
+      background: #E0FFE0;
+      color: #006600;
+    }
+    .editor-container {
+      flex: 1;
+      display: flex;
+      border: 2px solid;
+      border-color: #808080 #FFFFFF #FFFFFF #808080;
+      background: #1E1E2E;
+      overflow: hidden;
+      min-height: 150px;
+    }
+    .line-numbers {
+      padding: 8px 6px;
+      background: #2B2B3D;
+      color: #666;
+      font-family: 'Fixedsys', 'Consolas', 'Courier New', monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      text-align: right;
+      user-select: none;
+      min-width: 30px;
+      overflow: hidden;
+      border-right: 1px solid #404050;
+    }
+    .code-editor {
+      flex: 1;
+      padding: 8px;
+      background: #1E1E2E;
+      color: #D4D4D4;
+      font-family: 'Fixedsys', 'Consolas', 'Courier New', monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      border: none;
+      outline: none;
+      resize: none;
+      tab-size: 2;
+      white-space: pre;
+      overflow: auto;
+    }
+    .file-transfer-display {
+      border: 2px solid;
+      border-color: #FFFFFF #808080 #808080 #FFFFFF;
+      background: white;
+      margin-top: 6px;
+      padding: 4px;
+    }
+    .ft-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px;
+      background: linear-gradient(90deg, #004B87, #0066BB);
+      color: white;
+      font-size: 10px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+    .ft-icon { font-size: 14px; }
+    .ft-progress {
+      width: 100%;
+      height: 8px;
+      background: #E0E0E0;
+      border: 1px solid #B0B0B0;
+      margin: 2px 0;
+    }
+    .ft-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #00AA00, #00CC00);
+      transition: width 0.5s ease;
+    }
+    .ft-status {
+      font-size: 9px;
+      color: #888;
+      text-align: center;
+    }
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #666;
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid #A0A0A0;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="title">&#x1F4C4; Code Paste — AOL File Transfer</div>
+    <div class="toolbar">
+      <label>Language:</label>
+      <select id="lang-select">
+        <option value="auto">Auto-detect</option>
+        <option value="javascript">JavaScript</option>
+        <option value="typescript">TypeScript</option>
+        <option value="python">Python</option>
+        <option value="rust">Rust</option>
+        <option value="html">HTML</option>
+        <option value="css">CSS</option>
+        <option value="json">JSON</option>
+        <option value="bash">Bash</option>
+        <option value="sql">SQL</option>
+        <option value="go">Go</option>
+        <option value="java">Java</option>
+        <option value="csharp">C#</option>
+        <option value="cpp">C++</option>
+        <option value="yaml">YAML</option>
+        <option value="markdown">Markdown</option>
+        <option value="plaintext">Plain Text</option>
+      </select>
+      <input id="filename-input" type="text" placeholder="filename.ext" style="width:120px;" />
+      <div style="flex:1;"></div>
+      <button class="btn btn-copy" onclick="copyCode()">&#x1F4CB; Copy</button>
+      <button class="btn btn-send" onclick="sendCode()">&#x1F4E4; Send to Chat</button>
+    </div>
+    <div class="editor-container">
+      <div id="line-numbers" class="line-numbers">1</div>
+      <textarea id="code-editor" class="code-editor" placeholder="Paste your code here..." spellcheck="false"></textarea>
+    </div>
+    <div id="transfer-display" class="file-transfer-display" style="display:none;">
+      <div class="ft-header">
+        <span class="ft-icon">&#x1F4C1;</span>
+        <span id="ft-filename">code.txt</span>
+        <span style="flex:1;"></span>
+        <span id="ft-size">0 bytes</span>
+      </div>
+      <div class="ft-progress">
+        <div id="ft-progress-bar" class="ft-progress-bar" style="width:0%"></div>
+      </div>
+      <div id="ft-status" class="ft-status">Ready to send</div>
+    </div>
+    <div class="status-bar">
+      <span id="status-lines">Lines: 0</span>
+      <span id="status-chars">Characters: 0</span>
+      <span id="status-lang">Language: auto</span>
+    </div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

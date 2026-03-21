@@ -1628,3 +1628,793 @@ pub async fn set_server_acl(
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     client.set_server_acl(&room_id, allow, deny).await
 }
+
+// ----------------------------------------------------------
+// VoIP / Calling Commands (Phase 6)
+// ----------------------------------------------------------
+
+use crate::matrix::voip;
+
+/// Send a call invite (m.call.invite) to a room
+#[tauri::command]
+pub async fn call_invite(
+    state: State<'_, AppState>,
+    room_id: String,
+    sdp_offer: String,
+    is_video: bool,
+) -> Result<serde_json::Value, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    let parsed_room_id: matrix_sdk::ruma::OwnedRoomId = room_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
+
+    let room = client.inner().get_room(&parsed_room_id)
+        .ok_or_else(|| AppError::RoomNotFound(room_id.clone()))?;
+
+    let call_id = voip::generate_call_id();
+    let party_id = voip::generate_party_id();
+
+    // Build the m.call.invite event content
+    let invite_content = voip::CallInviteContent {
+        call_id: call_id.clone(),
+        party_id: party_id.clone(),
+        offer: voip::SdpContent {
+            sdp_type: "offer".to_string(),
+            sdp: sdp_offer,
+        },
+        version: 1,
+        lifetime: 60000, // 60 second timeout
+    };
+
+    let event_json = serde_json::json!({
+        "call_id": invite_content.call_id,
+        "party_id": invite_content.party_id,
+        "offer": invite_content.offer,
+        "version": invite_content.version,
+        "lifetime": invite_content.lifetime,
+    });
+
+    // Send as custom event type m.call.invite
+    use matrix_sdk::ruma::events::AnyMessageLikeEventContent;
+    let raw_content = matrix_sdk::ruma::serde::Raw::from_json(
+        serde_json::value::to_raw_value(&event_json)
+            .map_err(|e| AppError::Internal(e.to_string()))?,
+    );
+
+    let custom_content = AnyMessageLikeEventContent::from_parts(
+        "m.call.invite",
+        &raw_content,
+    ).map_err(|e| AppError::Internal(e.to_string()))?;
+
+    room.send(custom_content).await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+    // Get peer info from room members
+    let user_id = client.user_id().to_string();
+    let members = room.members(matrix_sdk::RoomMemberships::JOIN).await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+    let peer = members.iter().find(|m| m.user_id().to_string() != user_id);
+    let peer_user_id = peer.map(|m| m.user_id().to_string()).unwrap_or_default();
+    let peer_display_name = peer.and_then(|m| m.display_name().map(|n| n.to_string()));
+
+    // Register in VoIP state
+    let mut voip_state = state.voip_state.lock().await;
+    let call_info = voip_state.create_outgoing_call(
+        call_id.clone(),
+        room_id.clone(),
+        peer_user_id,
+        peer_display_name,
+        is_video,
+        party_id.clone(),
+    );
+
+    Ok(serde_json::json!({
+        "callId": call_id,
+        "partyId": party_id,
+        "callInfo": call_info,
+    }))
+}
+
+/// Send a call answer (m.call.answer) to a room
+#[tauri::command]
+pub async fn call_answer(
+    state: State<'_, AppState>,
+    room_id: String,
+    call_id: String,
+    party_id: String,
+    sdp_answer: String,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    let parsed_room_id: matrix_sdk::ruma::OwnedRoomId = room_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
+
+    let room = client.inner().get_room(&parsed_room_id)
+        .ok_or_else(|| AppError::RoomNotFound(room_id.clone()))?;
+
+    let answer_content = voip::CallAnswerContent {
+        call_id: call_id.clone(),
+        party_id,
+        answer: voip::SdpContent {
+            sdp_type: "answer".to_string(),
+            sdp: sdp_answer,
+        },
+        version: 1,
+    };
+
+    let event_json = serde_json::to_value(&answer_content)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    use matrix_sdk::ruma::events::AnyMessageLikeEventContent;
+    let raw_content = matrix_sdk::ruma::serde::Raw::from_json(
+        serde_json::value::to_raw_value(&event_json)
+            .map_err(|e| AppError::Internal(e.to_string()))?,
+    );
+    let custom_content = AnyMessageLikeEventContent::from_parts(
+        "m.call.answer",
+        &raw_content,
+    ).map_err(|e| AppError::Internal(e.to_string()))?;
+
+    room.send(custom_content).await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+    // Update VoIP state to connecting
+    let mut voip_state = state.voip_state.lock().await;
+    voip_state.set_connecting(&call_id);
+
+    Ok(())
+}
+
+/// Send a call hangup (m.call.hangup) to a room
+#[tauri::command]
+pub async fn call_hangup(
+    state: State<'_, AppState>,
+    room_id: String,
+    call_id: String,
+    party_id: String,
+    reason: Option<String>,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    let parsed_room_id: matrix_sdk::ruma::OwnedRoomId = room_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
+
+    let room = client.inner().get_room(&parsed_room_id)
+        .ok_or_else(|| AppError::RoomNotFound(room_id.clone()))?;
+
+    let hangup_content = voip::CallHangupContent {
+        call_id: call_id.clone(),
+        party_id,
+        version: 1,
+        reason: reason.clone(),
+    };
+
+    let event_json = serde_json::to_value(&hangup_content)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    use matrix_sdk::ruma::events::AnyMessageLikeEventContent;
+    let raw_content = matrix_sdk::ruma::serde::Raw::from_json(
+        serde_json::value::to_raw_value(&event_json)
+            .map_err(|e| AppError::Internal(e.to_string()))?,
+    );
+    let custom_content = AnyMessageLikeEventContent::from_parts(
+        "m.call.hangup",
+        &raw_content,
+    ).map_err(|e| AppError::Internal(e.to_string()))?;
+
+    room.send(custom_content).await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+    // End call in state
+    let mut voip_state = state.voip_state.lock().await;
+    let was_missed = reason.as_deref() == Some("missed");
+    voip_state.end_call(&call_id, was_missed);
+    voip_state.cleanup_ended();
+    voip::save_history(&voip_state.call_history);
+
+    Ok(())
+}
+
+/// Send ICE candidates (m.call.candidates) to a room
+#[tauri::command]
+pub async fn call_candidates(
+    state: State<'_, AppState>,
+    room_id: String,
+    call_id: String,
+    party_id: String,
+    candidates: Vec<voip::IceCandidate>,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    let parsed_room_id: matrix_sdk::ruma::OwnedRoomId = room_id
+        .as_str()
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
+
+    let room = client.inner().get_room(&parsed_room_id)
+        .ok_or_else(|| AppError::RoomNotFound(room_id.clone()))?;
+
+    let candidates_content = voip::CallCandidatesContent {
+        call_id,
+        party_id,
+        candidates,
+        version: 1,
+    };
+
+    let event_json = serde_json::to_value(&candidates_content)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    use matrix_sdk::ruma::events::AnyMessageLikeEventContent;
+    let raw_content = matrix_sdk::ruma::serde::Raw::from_json(
+        serde_json::value::to_raw_value(&event_json)
+            .map_err(|e| AppError::Internal(e.to_string()))?,
+    );
+    let custom_content = AnyMessageLikeEventContent::from_parts(
+        "m.call.candidates",
+        &raw_content,
+    ).map_err(|e| AppError::Internal(e.to_string()))?;
+
+    room.send(custom_content).await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Get the current call state for the active call (if any)
+#[tauri::command]
+pub async fn get_call_state(
+    state: State<'_, AppState>,
+    call_id: Option<String>,
+    room_id: Option<String>,
+) -> Result<Option<voip::CallInfo>, AppError> {
+    let voip_state = state.voip_state.lock().await;
+
+    if let Some(cid) = call_id {
+        Ok(voip_state.get_call(&cid).cloned())
+    } else if let Some(rid) = room_id {
+        Ok(voip_state.get_call_for_room(&rid).cloned())
+    } else {
+        // Return any active non-ended call
+        let active = voip_state.active_calls.values()
+            .find(|c| c.state != voip::CallState::Ended)
+            .cloned();
+        Ok(active)
+    }
+}
+
+/// Get call history
+#[tauri::command]
+pub async fn get_call_history(
+    state: State<'_, AppState>,
+    limit: Option<u32>,
+) -> Result<Vec<voip::CallHistoryEntry>, AppError> {
+    let voip_state = state.voip_state.lock().await;
+    let history = voip_state.get_history();
+    let limit = limit.unwrap_or(100).min(500) as usize;
+    let start = if history.len() > limit { history.len() - limit } else { 0 };
+    Ok(history[start..].to_vec())
+}
+
+/// Clear call history
+#[tauri::command]
+pub async fn clear_call_history(
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let mut voip_state = state.voip_state.lock().await;
+    voip_state.call_history.clear();
+    voip::save_history(&voip_state.call_history);
+    Ok(())
+}
+
+/// Get TURN server configuration from the homeserver
+#[tauri::command]
+pub async fn get_turn_servers(
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+
+    // Try to get TURN servers from Matrix homeserver
+    use matrix_sdk::ruma::api::client::voip::get_turn_server_info::v3::Request as TurnRequest;
+    let request = TurnRequest::new();
+    match client.inner().send(request).await {
+        Ok(response) => {
+            let uris: Vec<String> = response.uris.iter().map(|u| u.to_string()).collect();
+            Ok(serde_json::json!({
+                "username": response.username,
+                "password": response.password,
+                "uris": uris,
+                "ttl": u64::from(response.ttl),
+            }))
+        }
+        Err(e) => {
+            log::warn!("Failed to get TURN servers from homeserver: {}, using fallback STUN", e);
+            // Fallback to public STUN servers
+            Ok(serde_json::json!({
+                "username": null,
+                "password": null,
+                "uris": [
+                    "stun:stun.l.google.com:19302",
+                    "stun:stun1.l.google.com:19302",
+                    "stun:stun2.l.google.com:19302"
+                ],
+                "ttl": 86400
+            }))
+        }
+    }
+}
+
+// ----------------------------------------------------------
+// Plugin System Commands (Phase 7)
+// ----------------------------------------------------------
+
+/// Plugin manifest as stored on disk
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginManifestData {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub description: String,
+    pub author: String,
+    pub homepage: Option<String>,
+    pub min_app_version: Option<String>,
+    pub entry: String,
+    pub icon: Option<String>,
+    pub permissions: Vec<String>,
+    pub commands: Option<Vec<PluginCommandDef>>,
+    pub default_config: Option<serde_json::Value>,
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginCommandDef {
+    pub command: String,
+    pub description: String,
+    pub usage: String,
+}
+
+/// Installed plugin info returned to frontend
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct InstalledPluginInfo {
+    pub manifest: PluginManifestData,
+    pub path: String,
+    pub enabled: bool,
+    pub installed_at: u64,
+    pub approved_permissions: Vec<String>,
+    pub config: serde_json::Value,
+}
+
+/// Plugin registry persisted to disk
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
+struct PluginRegistry {
+    plugins: Vec<PluginRegistryEntry>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct PluginRegistryEntry {
+    id: String,
+    path: String,
+    enabled: bool,
+    installed_at: u64,
+    approved_permissions: Vec<String>,
+    config: serde_json::Value,
+}
+
+fn plugins_dir() -> Result<std::path::PathBuf, AppError> {
+    let base = dirs::data_dir()
+        .ok_or_else(|| AppError::Internal("Cannot determine data directory".into()))?;
+    let dir = base.join("pufferchat").join("plugins");
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| AppError::Internal(format!("Failed to create plugins dir: {}", e)))?;
+    Ok(dir)
+}
+
+fn plugin_registry_path() -> Result<std::path::PathBuf, AppError> {
+    let base = dirs::data_dir()
+        .ok_or_else(|| AppError::Internal("Cannot determine data directory".into()))?;
+    Ok(base.join("pufferchat").join("plugin_registry.json"))
+}
+
+fn load_plugin_registry() -> Result<PluginRegistry, AppError> {
+    let path = plugin_registry_path()?;
+    if !path.exists() {
+        return Ok(PluginRegistry::default());
+    }
+    let data = std::fs::read_to_string(&path)
+        .map_err(|e| AppError::Internal(format!("Failed to read plugin registry: {}", e)))?;
+    serde_json::from_str(&data)
+        .map_err(|e| AppError::Internal(format!("Failed to parse plugin registry: {}", e)))
+}
+
+fn save_plugin_registry(registry: &PluginRegistry) -> Result<(), AppError> {
+    let path = plugin_registry_path()?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| AppError::Internal(format!("Failed to create registry dir: {}", e)))?;
+    }
+    let data = serde_json::to_string_pretty(registry)
+        .map_err(|e| AppError::Internal(format!("Failed to serialize registry: {}", e)))?;
+    std::fs::write(&path, data)
+        .map_err(|e| AppError::Internal(format!("Failed to write plugin registry: {}", e)))?;
+    Ok(())
+}
+
+fn load_manifest_from_path(plugin_path: &str) -> Result<PluginManifestData, AppError> {
+    let manifest_path = std::path::Path::new(plugin_path).join("manifest.json");
+    if !manifest_path.exists() {
+        return Err(AppError::InvalidInput(format!(
+            "No manifest.json found in {}",
+            plugin_path
+        )));
+    }
+    let data = std::fs::read_to_string(&manifest_path)
+        .map_err(|e| AppError::Internal(format!("Failed to read manifest: {}", e)))?;
+    let manifest: PluginManifestData = serde_json::from_str(&data)
+        .map_err(|e| AppError::InvalidInput(format!("Invalid manifest.json: {}", e)))?;
+
+    // Validate required fields
+    if manifest.id.is_empty() {
+        return Err(AppError::InvalidInput("Plugin manifest missing 'id'".into()));
+    }
+    if manifest.name.is_empty() {
+        return Err(AppError::InvalidInput("Plugin manifest missing 'name'".into()));
+    }
+    if manifest.entry.is_empty() {
+        return Err(AppError::InvalidInput("Plugin manifest missing 'entry'".into()));
+    }
+
+    // Validate entry file exists
+    let entry_path = std::path::Path::new(plugin_path).join(&manifest.entry);
+    if !entry_path.exists() {
+        return Err(AppError::InvalidInput(format!(
+            "Plugin entry file '{}' not found",
+            manifest.entry
+        )));
+    }
+
+    Ok(manifest)
+}
+
+/// Install a plugin from a directory path
+#[tauri::command]
+pub async fn install_plugin(
+    plugin_path: String,
+) -> Result<InstalledPluginInfo, AppError> {
+    let manifest = load_manifest_from_path(&plugin_path)?;
+
+    let mut registry = load_plugin_registry()?;
+
+    // Check if already installed
+    if registry.plugins.iter().any(|p| p.id == manifest.id) {
+        return Err(AppError::InvalidInput(format!(
+            "Plugin '{}' is already installed",
+            manifest.id
+        )));
+    }
+
+    // Copy plugin to plugins directory
+    let dest_dir = plugins_dir()?.join(&manifest.id);
+    if dest_dir.exists() {
+        std::fs::remove_dir_all(&dest_dir)
+            .map_err(|e| AppError::Internal(format!("Failed to clean plugin dir: {}", e)))?;
+    }
+
+    // Recursive copy
+    fn copy_dir_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), AppError> {
+        std::fs::create_dir_all(dst)
+            .map_err(|e| AppError::Internal(format!("Failed to create dir: {}", e)))?;
+        for entry in std::fs::read_dir(src)
+            .map_err(|e| AppError::Internal(format!("Failed to read dir: {}", e)))?
+        {
+            let entry = entry.map_err(|e| AppError::Internal(format!("Dir entry error: {}", e)))?;
+            let src_path = entry.path();
+            let dst_path = dst.join(entry.file_name());
+            if src_path.is_dir() {
+                copy_dir_recursive(&src_path, &dst_path)?;
+            } else {
+                std::fs::copy(&src_path, &dst_path)
+                    .map_err(|e| AppError::Internal(format!("Failed to copy file: {}", e)))?;
+            }
+        }
+        Ok(())
+    }
+
+    copy_dir_recursive(std::path::Path::new(&plugin_path), &dest_dir)?;
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+
+    let default_config = manifest.default_config.clone().unwrap_or(serde_json::json!({}));
+
+    let entry = PluginRegistryEntry {
+        id: manifest.id.clone(),
+        path: dest_dir.to_string_lossy().to_string(),
+        enabled: true,
+        installed_at: now,
+        approved_permissions: manifest.permissions.clone(),
+        config: default_config.clone(),
+    };
+
+    registry.plugins.push(entry.clone());
+    save_plugin_registry(&registry)?;
+
+    log::info!("Plugin '{}' installed successfully", manifest.id);
+
+    Ok(InstalledPluginInfo {
+        manifest,
+        path: entry.path,
+        enabled: entry.enabled,
+        installed_at: entry.installed_at,
+        approved_permissions: entry.approved_permissions,
+        config: default_config,
+    })
+}
+
+/// Remove an installed plugin
+#[tauri::command]
+pub async fn remove_plugin(
+    plugin_id: String,
+) -> Result<(), AppError> {
+    let mut registry = load_plugin_registry()?;
+
+    let idx = registry.plugins.iter().position(|p| p.id == plugin_id);
+    if let Some(idx) = idx {
+        let entry = registry.plugins.remove(idx);
+        save_plugin_registry(&registry)?;
+
+        // Remove plugin directory
+        let dir = std::path::Path::new(&entry.path);
+        if dir.exists() {
+            std::fs::remove_dir_all(dir)
+                .map_err(|e| AppError::Internal(format!("Failed to remove plugin dir: {}", e)))?;
+        }
+
+        log::info!("Plugin '{}' removed successfully", plugin_id);
+        Ok(())
+    } else {
+        Err(AppError::InvalidInput(format!(
+            "Plugin '{}' not found",
+            plugin_id
+        )))
+    }
+}
+
+/// List all installed plugins
+#[tauri::command]
+pub async fn list_plugins() -> Result<Vec<InstalledPluginInfo>, AppError> {
+    let registry = load_plugin_registry()?;
+    let mut plugins = Vec::new();
+
+    for entry in &registry.plugins {
+        let manifest_path = std::path::Path::new(&entry.path).join("manifest.json");
+        if !manifest_path.exists() {
+            log::warn!("Plugin '{}' manifest not found, skipping", entry.id);
+            continue;
+        }
+
+        match load_manifest_from_path(&entry.path) {
+            Ok(manifest) => {
+                plugins.push(InstalledPluginInfo {
+                    manifest,
+                    path: entry.path.clone(),
+                    enabled: entry.enabled,
+                    installed_at: entry.installed_at,
+                    approved_permissions: entry.approved_permissions.clone(),
+                    config: entry.config.clone(),
+                });
+            }
+            Err(e) => {
+                log::warn!("Failed to load plugin '{}': {}", entry.id, e);
+            }
+        }
+    }
+
+    Ok(plugins)
+}
+
+/// Get a specific config value for a plugin
+#[tauri::command]
+pub async fn get_plugin_config(
+    plugin_id: String,
+    key: String,
+) -> Result<Option<String>, AppError> {
+    let registry = load_plugin_registry()?;
+
+    let entry = registry.plugins.iter().find(|p| p.id == plugin_id);
+    if let Some(entry) = entry {
+        let value = entry.config.get(&key).and_then(|v| {
+            if v.is_string() {
+                v.as_str().map(|s| s.to_string())
+            } else {
+                Some(v.to_string())
+            }
+        });
+        Ok(value)
+    } else {
+        Err(AppError::InvalidInput(format!(
+            "Plugin '{}' not found",
+            plugin_id
+        )))
+    }
+}
+
+/// Set a config value for a plugin
+#[tauri::command]
+pub async fn set_plugin_config(
+    plugin_id: String,
+    key: String,
+    value: String,
+) -> Result<(), AppError> {
+    let mut registry = load_plugin_registry()?;
+
+    let entry = registry.plugins.iter_mut().find(|p| p.id == plugin_id);
+    if let Some(entry) = entry {
+        // Handle special keys
+        if key == "_enabled" {
+            entry.enabled = value == "true";
+        } else {
+            // Set in config map
+            if let serde_json::Value::Object(ref mut map) = entry.config {
+                map.insert(key, serde_json::Value::String(value));
+            }
+        }
+        save_plugin_registry(&registry)?;
+        Ok(())
+    } else {
+        Err(AppError::InvalidInput(format!(
+            "Plugin '{}' not found",
+            plugin_id
+        )))
+    }
+}
+
+// ----------------------------------------------------------
+// Phase 8: Privacy, Security & Polish Commands
+// ----------------------------------------------------------
+
+use crate::phase8;
+
+/// Get proxy configuration
+#[tauri::command]
+pub async fn get_proxy_config() -> Result<phase8::ProxyConfig, AppError> {
+    phase8::get_proxy_config_impl()
+}
+
+/// Set proxy configuration
+#[tauri::command]
+pub async fn set_proxy_config(config: phase8::ProxyConfig) -> Result<(), AppError> {
+    phase8::set_proxy_config_impl(config)
+}
+
+/// Test proxy connection
+#[tauri::command]
+pub async fn test_proxy_connection(config: phase8::ProxyConfig) -> Result<bool, AppError> {
+    phase8::test_proxy_connection_impl(&config)
+}
+
+/// Pin a TLS certificate
+#[tauri::command]
+pub async fn pin_certificate(cert: phase8::PinnedCertificate) -> Result<(), AppError> {
+    phase8::pin_certificate_impl(cert)
+}
+
+/// Get all pinned certificates
+#[tauri::command]
+pub async fn get_pinned_certs() -> Result<Vec<phase8::PinnedCertificate>, AppError> {
+    phase8::get_pinned_certs_impl()
+}
+
+/// Remove a pinned certificate
+#[tauri::command]
+pub async fn remove_pinned_cert(host: String) -> Result<(), AppError> {
+    phase8::remove_pinned_cert_impl(host)
+}
+
+/// Get DoH configuration
+#[tauri::command]
+pub async fn get_doh_config() -> Result<phase8::DohConfig, AppError> {
+    phase8::get_doh_config_impl()
+}
+
+/// Set DoH configuration
+#[tauri::command]
+pub async fn set_doh_config(config: phase8::DohConfig) -> Result<(), AppError> {
+    phase8::set_doh_config_impl(config)
+}
+
+/// Export all settings to a file
+#[tauri::command]
+pub async fn export_settings(file_path: String) -> Result<(), AppError> {
+    phase8::export_settings_impl(file_path)
+}
+
+/// Import settings from a file
+#[tauri::command]
+pub async fn import_settings(file_path: String) -> Result<(), AppError> {
+    phase8::import_settings_impl(file_path)
+}
+
+/// Add an account
+#[tauri::command]
+pub async fn add_account(account: phase8::AccountInfo) -> Result<(), AppError> {
+    phase8::add_account_impl(account)
+}
+
+/// Remove an account
+#[tauri::command]
+pub async fn remove_account(user_id: String) -> Result<(), AppError> {
+    phase8::remove_account_impl(user_id)
+}
+
+/// Switch active account
+#[tauri::command]
+pub async fn switch_account(user_id: String) -> Result<phase8::AccountInfo, AppError> {
+    phase8::switch_account_impl(user_id)
+}
+
+/// List all accounts
+#[tauri::command]
+pub async fn list_accounts() -> Result<Vec<phase8::AccountInfo>, AppError> {
+    phase8::list_accounts_impl()
+}
+
+/// Get SSO providers for a homeserver
+#[tauri::command]
+pub async fn get_sso_providers(homeserver: String) -> Result<Vec<phase8::SsoProvider>, AppError> {
+    phase8::get_sso_providers_impl(&homeserver).await
+}
+
+/// Get SSO login URL
+#[tauri::command]
+pub async fn get_sso_login_url(
+    homeserver: String,
+    provider_id: String,
+    redirect_url: String,
+) -> Result<phase8::SsoLoginUrl, AppError> {
+    phase8::get_sso_login_url_impl(&homeserver, &provider_id, &redirect_url)
+}
+
+/// Check data integrity
+#[tauri::command]
+pub async fn check_integrity() -> Result<phase8::IntegrityReport, AppError> {
+    phase8::check_integrity_impl()
+}
+
+/// Repair database
+#[tauri::command]
+pub async fn repair_database() -> Result<bool, AppError> {
+    phase8::repair_database_impl()
+}
+
+/// Save a message draft
+#[tauri::command]
+pub async fn save_draft(room_id: String, draft: String) -> Result<(), AppError> {
+    phase8::save_draft_impl(&room_id, &draft)
+}
+
+/// Get a message draft
+#[tauri::command]
+pub async fn get_draft(room_id: String) -> Result<Option<String>, AppError> {
+    phase8::get_draft_impl(&room_id)
+}
+
+/// Get all message drafts
+#[tauri::command]
+pub async fn get_all_drafts() -> Result<std::collections::HashMap<String, String>, AppError> {
+    phase8::get_all_drafts_impl()
+}

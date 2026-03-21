@@ -1,8 +1,9 @@
-mod commands;
+﻿mod commands;
 mod error;
 mod link_preview;
 mod matrix;
 mod store;
+mod phase8;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -11,13 +12,17 @@ use tokio::sync::Mutex;
 pub struct AppState {
     pub matrix_client: Arc<Mutex<Option<matrix::client::MatrixClient>>>,
     pub is_locked: Arc<Mutex<bool>>,
+    pub voip_state: Arc<Mutex<matrix::voip::VoipState>>,
 }
 
 impl AppState {
     pub fn new() -> Self {
+        let mut voip = matrix::voip::VoipState::new();
+        voip.call_history = matrix::voip::load_history();
         Self {
             matrix_client: Arc::new(Mutex::new(None)),
             is_locked: Arc::new(Mutex::new(false)),
+            voip_state: Arc::new(Mutex::new(voip)),
         }
     }
 }
@@ -130,6 +135,43 @@ pub fn run() {
             commands::resolve_mxc_full_url,
             // Link Preview
             link_preview::fetch_link_preview,
+            // VoIP / Calling (Phase 6)
+            commands::call_invite,
+            commands::call_answer,
+            commands::call_hangup,
+            commands::call_candidates,
+            commands::get_call_state,
+            commands::get_call_history,
+            commands::clear_call_history,
+            commands::get_turn_servers,
+            // Plugin System (Phase 7)
+            commands::install_plugin,
+            commands::remove_plugin,
+            commands::list_plugins,
+            commands::get_plugin_config,
+            commands::set_plugin_config,
+            // Phase 8: Privacy, Security & Polish
+            commands::get_proxy_config,
+            commands::set_proxy_config,
+            commands::test_proxy_connection,
+            commands::pin_certificate,
+            commands::get_pinned_certs,
+            commands::remove_pinned_cert,
+            commands::get_doh_config,
+            commands::set_doh_config,
+            commands::export_settings,
+            commands::import_settings,
+            commands::add_account,
+            commands::remove_account,
+            commands::switch_account,
+            commands::list_accounts,
+            commands::get_sso_providers,
+            commands::get_sso_login_url,
+            commands::check_integrity,
+            commands::repair_database,
+            commands::save_draft,
+            commands::get_draft,
+            commands::get_all_drafts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running PufferChat");

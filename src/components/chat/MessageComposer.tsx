@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { useMessagesStore } from "../../stores/messages";
+import { useMessagesStore, type TimelineMessage } from "../../stores/messages";
 import { useTypingStore } from "../../stores/typing";
 import { useAuthStore } from "../../stores/auth";
 import { useClipboardPaste, PastePreview } from "./ClipboardPasteHandler";
@@ -55,8 +55,10 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
   const editingMessage = useMessagesStore((s) => s.editingMessage[roomId] ?? null);
   const setEditingMessage = useMessagesStore((s) => s.setEditingMessage);
   const setReplyingTo = useMessagesStore((s) => s.setReplyingTo);
+  const addMessage = useMessagesStore((s) => s.addMessage);
   const typingUsers = useTypingStore((s) => s.typing[roomId] ?? []);
   const userId = useAuthStore((s) => s.userId);
+  const displayName = useAuthStore((s) => s.displayName);
 
   const filteredTyping = typingUsers.filter((u) => u !== userId);
 
@@ -85,10 +87,46 @@ export default function MessageComposer({ roomId }: MessageComposerProps) {
         await invoke("edit_message", { roomId, eventId: editingMessage.eventId, newBody: body });
         setEditingMessage(roomId, null);
       } else if (replyingTo) {
-        await invoke("send_reply", { roomId, body, replyToEventId: replyingTo.eventId });
+        const eventId = await invoke<string>("send_reply", { roomId, body, replyToEventId: replyingTo.eventId });
+        const optimisticReply: TimelineMessage = {
+          eventId,
+          sender: userId || "",
+          senderName: displayName || null,
+          body,
+          formattedBody: null,
+          timestamp: Date.now(),
+          isEdited: false,
+          replyTo: replyingTo.eventId,
+          reactions: [],
+          isRedacted: false,
+          replaces: null,
+          avatarUrl: null,
+          msgType: "m.text",
+          mediaUrl: null,
+          mediaInfo: null,
+        };
+        addMessage(roomId, optimisticReply);
         setReplyingTo(roomId, null);
       } else {
-        await invoke("send_message", { roomId, body });
+        const eventId = await invoke<string>("send_message", { roomId, body });
+        const optimisticMsg: TimelineMessage = {
+          eventId,
+          sender: userId || "",
+          senderName: displayName || null,
+          body,
+          formattedBody: null,
+          timestamp: Date.now(),
+          isEdited: false,
+          replyTo: null,
+          reactions: [],
+          isRedacted: false,
+          replaces: null,
+          avatarUrl: null,
+          msgType: "m.text",
+          mediaUrl: null,
+          mediaInfo: null,
+        };
+        addMessage(roomId, optimisticMsg);
       }
       setText("");
       sendTyping(false);

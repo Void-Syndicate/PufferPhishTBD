@@ -10,7 +10,11 @@ export type SoundEvent =
   | 'door-close'
   | 'welcome'
   | 'notification'
-  | 'error';
+  | 'error'
+  | 'call-ringing'
+  | 'call-busy'
+  | 'call-end'
+  | 'call-connect';
 
 interface SoundConfig {
   enabled: boolean;
@@ -35,7 +39,11 @@ const SOUND_PROFILES: Record<SoundEvent, { freq: number; duration: number; type:
   'door-close': { freq: 330, duration: 0.25, type: 'triangle', ramp: true },
   'welcome': { freq: 523, duration: 0.5, type: 'sine', ramp: true },
   'notification': { freq: 880, duration: 0.2, type: 'square' },
-  'error': { freq: 200, duration: 0.3, type: 'sawtooth' },
+    'error': { freq: 200, duration: 0.3, type: 'sawtooth' },
+  'call-ringing': { freq: 440, duration: 0.8, type: 'sine', ramp: true },
+  'call-busy': { freq: 480, duration: 0.5, type: 'square', ramp: true },
+  'call-end': { freq: 300, duration: 0.4, type: 'triangle', ramp: true },
+  'call-connect': { freq: 660, duration: 0.3, type: 'sine', ramp: true },
 };
 
 class SoundEngine {
@@ -116,3 +124,4 @@ class SoundEngine {
 
 export const soundEngine = new SoundEngine();
 soundEngine.loadSettings();
+

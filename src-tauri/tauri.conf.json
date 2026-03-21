@@ -1,40 +1,86 @@
-{
-    "productName":  "PufferChat",
-    "version":  "0.1.0",
-    "identifier":  "com.voidsyndicate.pufferchat",
-    "build":  {
-                  "beforeDevCommand":  "npm run dev",
-                  "devUrl":  "http://localhost:1420",
-                  "beforeBuildCommand":  "npm run build",
-                  "frontendDist":  "../dist"
-              },
-    "app":  {
-                "windows":  [
-                                {
-                                    "title":  "PufferChat",
-                                    "width":  900,
-                                    "height":  650,
-                                    "resizable":  true,
-                                    "fullscreen":  false
-                                }
-                            ],
-                "security":  {
-                                 "csp":  "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https: blob: data:; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420 wss://localhost:1420 https://* http://localhost:*; font-src 'self' data:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
-                             }
+﻿{
+    "productName": "PufferChat",
+    "version": "1.0.0",
+    "identifier": "com.voidsyndicate.pufferchat",
+    "build": {
+        "beforeDevCommand": "npm run dev",
+        "devUrl": "http://localhost:1420",
+        "beforeBuildCommand": "npm run build",
+        "frontendDist": "../dist"
+    },
+    "app": {
+        "windows": [
+            {
+                "title": "PufferChat",
+                "width": 900,
+                "height": 650,
+                "resizable": true,
+                "fullscreen": false,
+                "minWidth": 600,
+                "minHeight": 400
+            }
+        ],
+        "security": {
+            "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: https: blob: data:; connect-src 'self' ipc: http://ipc.localhost ws://localhost:1420 wss://localhost:1420 https://* http://localhost:*; font-src 'self' data:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        },
+        "trayIcon": {
+            "iconPath": "icons/icon.png",
+            "iconAsTemplate": true,
+            "tooltip": "PufferChat"
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": "all",
+        "icon": [
+            "icons/32x32.png",
+            "icons/128x128.png",
+            "icons/128x128@2x.png",
+            "icons/icon.icns",
+            "icons/icon.ico"
+        ],
+        "windows": {
+            "certificateThumbprint": null,
+            "digestAlgorithm": "sha256",
+            "timestampUrl": "",
+            "nsis": {
+                "displayLanguageSelector": false,
+                "installerIcon": "icons/icon.ico",
+                "headerImage": null,
+                "sidebarImage": null,
+                "languages": ["English"],
+                "installMode": "currentUser"
+            }
+        },
+        "macOS": {
+            "frameworks": [],
+            "minimumSystemVersion": "12.0",
+            "signingIdentity": null,
+            "entitlements": null
+        },
+        "linux": {
+            "deb": {
+                "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "libayatana-appindicator3-1"]
             },
-    "bundle":  {
-                   "active":  true,
-                   "targets":  "all",
-                   "icon":  [
-                                "icons/32x32.png",
-                                "icons/128x128.png",
-                                "icons/128x128@2x.png",
-                                "icons/icon.icns",
-                                "icons/icon.ico"
-                            ]
-               },
-    "plugins":  {
-                    "notification":  null,
-                    "dialog":  null
-                }
+            "appimage": {
+                "bundleMediaFramework": true
+            }
+        },
+        "fileAssociations": [
+            {
+                "ext": ["matrix"],
+                "mimeType": "application/x-matrix-room",
+                "description": "Matrix Room Link"
+            }
+        ],
+        "shortDescription": "Secure Matrix client with retro AOL aesthetic",
+        "longDescription": "PufferChat is a secure, privacy-focused Matrix messaging client featuring end-to-end encryption, voice/video calling, and a nostalgic AOL/Windows 95 user interface."
+    },
+    "plugins": {
+        "notification": null,
+        "dialog": null,
+        "shell": {
+            "open": true
+        }
+    }
 }

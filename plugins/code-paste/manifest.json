@@ -1,0 +1,27 @@
+﻿{
+  "id": "pufferchat.code-paste",
+  "name": "Code Paste",
+  "version": "1.0.0",
+  "description": "Syntax-highlighted code sharing with /paste command. Language detection, line numbers, and AOL file transfer styled display.",
+  "author": "PufferChat Team",
+  "entry": "index.html",
+  "icon": null,
+  "permissions": [
+    "send-messages",
+    "read-messages",
+    "register-commands",
+    "storage",
+    "ui-panels"
+  ],
+  "commands": [
+    {
+      "command": "paste",
+      "description": "Open code editor panel to share syntax-highlighted code",
+      "usage": "/paste [language]"
+    }
+  ],
+  "defaultConfig": {
+    "defaultLanguage": "auto"
+  },
+  "tags": ["code", "developer", "syntax-highlighting"]
+}

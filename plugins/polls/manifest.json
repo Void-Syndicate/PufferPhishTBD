@@ -1,0 +1,24 @@
+﻿{
+  "id": "pufferchat.polls",
+  "name": "Polls",
+  "version": "1.0.0",
+  "description": "Create and vote on polls in chat. Use /poll \"Question\" \"Option1\" \"Option2\" ... to create a poll.",
+  "author": "PufferChat Team",
+  "entry": "index.html",
+  "icon": null,
+  "permissions": [
+    "send-messages",
+    "read-messages",
+    "register-commands",
+    "storage"
+  ],
+  "commands": [
+    {
+      "command": "poll",
+      "description": "Create a poll with options",
+      "usage": "/poll \"Question\" \"Option 1\" \"Option 2\" ..."
+    }
+  ],
+  "defaultConfig": {},
+  "tags": ["polls", "voting", "community"]
+}

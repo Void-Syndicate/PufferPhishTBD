@@ -1,0 +1,110 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dice Roller</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'MS Sans Serif', 'Segoe UI', Tahoma, sans-serif;
+      font-size: 11px;
+      background: #C0C0C0;
+      color: #000;
+      padding: 4px;
+    }
+    .panel {
+      border: 2px solid;
+      border-color: #FFFFFF #808080 #808080 #FFFFFF;
+      padding: 8px;
+      background: #C0C0C0;
+    }
+    .title {
+      font-weight: bold;
+      font-size: 12px;
+      color: #004B87;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .dice-display {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      min-height: 50px;
+      padding: 8px;
+      background: white;
+      border: 2px solid;
+      border-color: #808080 #FFFFFF #FFFFFF #808080;
+      margin-bottom: 8px;
+    }
+    .die {
+      width: 40px;
+      height: 40px;
+      border: 2px solid;
+      border-color: #FFFFFF #808080 #808080 #FFFFFF;
+      background: linear-gradient(135deg, #FFFFcc, #FFFFAA);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+      color: #004B87;
+      border-radius: 4px;
+      animation: diceRoll 0.4s ease-out;
+    }
+    @keyframes diceRoll {
+      0% { transform: rotate(0deg) scale(0.5); opacity: 0; }
+      50% { transform: rotate(180deg) scale(1.1); opacity: 0.7; }
+      100% { transform: rotate(360deg) scale(1); opacity: 1; }
+    }
+    .result {
+      text-align: center;
+      font-size: 14px;
+      font-weight: bold;
+      padding: 4px;
+      background: #E8F0FF;
+      border: 1px solid #B0C0D0;
+      margin-bottom: 6px;
+    }
+    .result-total { color: #004B87; font-size: 18px; }
+    .history {
+      max-height: 100px;
+      overflow-y: auto;
+      font-size: 10px;
+      border: 2px solid;
+      border-color: #808080 #FFFFFF #FFFFFF #808080;
+      background: white;
+      padding: 4px;
+    }
+    .history-item {
+      padding: 2px 0;
+      border-bottom: 1px solid #E0E0E0;
+    }
+    .info {
+      font-size: 9px;
+      color: #666;
+      text-align: center;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="title">&#x1F3B2; Dice Roller</div>
+    <div id="dice-display" class="dice-display">
+      <div style="color:#888;font-size:10px;">Roll dice with /roll command</div>
+    </div>
+    <div id="result" class="result" style="display:none;">
+      <div>Total: <span id="total" class="result-total">0</span></div>
+      <div id="breakdown" style="font-size:10px;color:#666;"></div>
+    </div>
+    <div class="title" style="font-size:10px;margin-top:6px;">Roll History</div>
+    <div id="history" class="history">
+      <div style="color:#888;text-align:center;">No rolls yet</div>
+    </div>
+    <div class="info">Supported: d4, d6, d8, d10, d12, d20, d100 &bull; Example: /roll 2d6+3</div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

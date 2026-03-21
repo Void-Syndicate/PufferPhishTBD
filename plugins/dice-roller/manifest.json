@@ -1,0 +1,24 @@
+﻿{
+  "id": "pufferchat.dice-roller",
+  "name": "Dice Roller",
+  "version": "1.0.0",
+  "description": "Roll dice with /roll NdN syntax. Supports standard RPG dice (d4, d6, d8, d10, d12, d20, d100).",
+  "author": "PufferChat Team",
+  "entry": "index.html",
+  "icon": null,
+  "permissions": [
+    "send-messages",
+    "read-messages",
+    "register-commands",
+    "storage"
+  ],
+  "commands": [
+    {
+      "command": "roll",
+      "description": "Roll dice (e.g., /roll 2d6, /roll d20, /roll 4d8+3)",
+      "usage": "/roll <dice expression>"
+    }
+  ],
+  "defaultConfig": {},
+  "tags": ["games", "rpg", "dice"]
+}
