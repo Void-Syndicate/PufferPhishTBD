@@ -704,21 +704,29 @@ impl MatrixClient {
                 }
             },
         );
+        // Emit rooms-changed on relevant sync events
         let app_handle_sync = app_handle.clone();
-        tokio::spawn(async move {
-            loop {
-                match client.sync_once(settings.clone()).await {
-                    Ok(_response) => {
-                        log::debug!("Sync completed successfully");
-                        if let Err(e) = app_handle_sync.emit("matrix://rooms-changed", ()) {
-                            log::error!("Failed to emit rooms-changed: {}", e);
-                        }
-                    }
-                    Err(e) => {
-                        log::error!("Sync error: {}", e);
-                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    }
+        client.add_event_handler(
+            move |_event: matrix_sdk::ruma::events::room::member::SyncRoomMemberEvent| {
+                let handle = app_handle_sync.clone();
+                async move {
+                    let _ = handle.emit("matrix://rooms-changed", ());
                 }
+            },
+        );
+        let app_handle_sync2 = app_handle.clone();
+        client.add_event_handler(
+            move |_event: OriginalSyncRoomMessageEvent| {
+                let handle = app_handle_sync2.clone();
+                async move {
+                    let _ = handle.emit("matrix://rooms-changed", ());
+                }
+            },
+        );
+        // Use streaming sync - handles since tokens automatically
+        tokio::spawn(async move {
+            if let Err(e) = client.sync(settings).await {
+                log::error!("Sync stream ended with error: {}", e);
             }
         });
 
@@ -727,19 +735,12 @@ impl MatrixClient {
 
     /// Start the sync loop (legacy, no events)
     pub async fn start_sync(&self) -> Result<(), AppError> {
-        let settings = SyncSettings::default();
+        let settings = SyncSettings::default()
+            .timeout(std::time::Duration::from_secs(30));
         let client = self.client.clone();
         tokio::spawn(async move {
-            loop {
-                match client.sync_once(settings.clone()).await {
-                    Ok(_response) => {
-                        log::debug!("Sync completed successfully");
-                    }
-                    Err(e) => {
-                        log::error!("Sync error: {}", e);
-                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    }
-                }
+            if let Err(e) = client.sync(settings).await {
+                log::error!("Sync stream ended with error: {}", e);
             }
         });
         Ok(())
@@ -759,36 +760,8 @@ impl MatrixClient {
             let unread = room.unread_notification_counts();
             let member_count = room.joined_members_count();
 
-            // Fetch last message from room's latest event
-            let (last_message, last_message_timestamp) = {
-                use matrix_sdk::ruma::api::client::message::get_message_events::v3::Request;
-                use matrix_sdk::ruma::api::Direction;
-
-                let mut last_msg = None;
-                let mut last_ts = None;
-
-                let mut request = Request::new(room.room_id().to_owned(), Direction::Backward);
-                request.limit = UInt::from(5u32);
-
-                if let Ok(response) = self.client.send(request).await {
-                    for raw_event in &response.chunk {
-                        if let Ok(event) = raw_event.deserialize() {
-                            if let Some(msg) = timeline_message_from_any_event(&event) {
-                                let preview = if msg.body.len() > 100 {
-                                    format!("{}...", &msg.body[..97])
-                                } else {
-                                    msg.body.clone()
-                                };
-                                last_msg = Some(preview);
-                                last_ts = Some(msg.timestamp);
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                (last_msg, last_ts)
-            };
+            // Skip per-room HTTP fetch for last message - populated via sync events
+            let (last_message, last_message_timestamp): (Option<String>, Option<i64>) = (None, None);
 
             let avatar_url = room.avatar_url().map(|u| u.to_string());
 
