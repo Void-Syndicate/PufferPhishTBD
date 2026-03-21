@@ -152,37 +152,53 @@ pub async fn restore_session(
 
     log::info!("Restoring saved session for {}", user_id);
 
-    match MatrixClient::restore(&homeserver, &access_token, &user_id, &device_id).await {
-        Ok(client) => {
-            let display_name = client
-                .inner()
-                .account()
-                .get_display_name()
-                .await
-                .ok()
-                .flatten()
-                .map(|n| n.to_string());
+    // Timeout the entire restore to prevent infinite hang
+    let restore_fut = MatrixClient::restore(&homeserver, &access_token, &user_id, &device_id);
+    let restore_result = tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        restore_fut,
+    ).await;
 
-            let result = LoginResult {
-                user_id: user_id.clone(),
-                display_name,
-                device_id: device_id.clone(),
-            };
-
-            let mut client_lock = state.matrix_client.lock().await;
-            *client_lock = Some(client);
-
-            log::info!("Session restored for {}", user_id);
-            Ok(Some(result))
-        }
-        Err(e) => {
-            log::warn!("Session restore failed, clearing stale creds and crypto store: {}", e);
+    let client = match restore_result {
+        Ok(Ok(client)) => client,
+        Ok(Err(e)) => {
+            log::warn!("Session restore failed, clearing stale creds: {}", e);
             keychain::clear_session()?;
             let _ = crate::matrix::client::clear_crypto_store();
             let _ = crate::matrix::client::clear_db_passphrase();
-            Ok(None)
+            return Ok(None);
         }
-    }
+        Err(_) => {
+            log::warn!("Session restore timed out after 15s, clearing stale session");
+            keychain::clear_session()?;
+            let _ = crate::matrix::client::clear_crypto_store();
+            let _ = crate::matrix::client::clear_db_passphrase();
+            return Ok(None);
+        }
+    };
+
+    // Timeout display name fetch (network call) separately
+    let display_name = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        client.inner().account().get_display_name(),
+    )
+    .await
+    .ok()
+    .and_then(|r| r.ok())
+    .flatten()
+    .map(|n| n.to_string());
+
+    let result = LoginResult {
+        user_id: user_id.clone(),
+        display_name,
+        device_id: device_id.clone(),
+    };
+
+    let mut client_lock = state.matrix_client.lock().await;
+    *client_lock = Some(client);
+
+    log::info!("Session restored for {}", user_id);
+    Ok(Some(result))
 }
 
 /// Logout from Matrix

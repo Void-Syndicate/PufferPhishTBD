@@ -31,11 +31,17 @@ function App() {
     document.documentElement.setAttribute("data-theme", savedTheme);
   }, []);
 
-  // Try to restore saved session on startup
+  // Try to restore saved session on startup (with frontend timeout safety)
   useEffect(() => {
     async function tryRestore() {
       try {
-        const result = await invoke<LoginResponse | null>("restore_session");
+        const timeout = new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error("Session restore timed out")), 20000)
+        );
+        const result = await Promise.race([
+          invoke<LoginResponse | null>("restore_session"),
+          timeout,
+        ]);
         if (result) {
           login({
             userId: result.userId,

@@ -348,15 +348,19 @@ impl MatrixClient {
         user_id: &str,
         device_id: &str,
     ) -> Result<Self, AppError> {
+        log::info!("[restore] Building persistent client for {}...", user_id);
         let client = match Self::build_persistent_client(homeserver, user_id).await {
-            Ok(c) => c,
+            Ok(c) => {
+                log::info!("[restore] Persistent client built successfully");
+                c
+            }
             Err(e) => {
                 let err_str = format!("{}", e);
                 if err_str.contains("cipher") || err_str.contains("Cipher")
                     || err_str.contains("crypto") || err_str.contains("database")
                     || err_str.contains("SqliteStore")
                 {
-                    log::warn!("Store cipher error during restore for {}, clearing and retrying: {}", user_id, e);
+                    log::warn!("[restore] Store cipher error, clearing and retrying: {}", e);
                     let _ = clear_crypto_store_for_user(Some(user_id));
                     let _ = clear_db_passphrase_for_user(Some(user_id));
                     Self::build_persistent_client(homeserver, user_id).await?
@@ -366,6 +370,7 @@ impl MatrixClient {
             }
         };
 
+        log::info!("[restore] Restoring Matrix auth session...");
         let parsed_user_id: OwnedUserId = user_id
             .try_into()
             .map_err(|e: matrix_sdk::ruma::IdParseError| AppError::Auth(e.to_string()))?;
@@ -388,6 +393,7 @@ impl MatrixClient {
             .await
             .map_err(|e| AppError::Auth(e.to_string()))?;
 
+        log::info!("[restore] Session restored successfully");
         let user_id = client.user_id().ok_or(AppError::NotLoggedIn)?.to_owned();
 
         Ok(Self { client, user_id })
