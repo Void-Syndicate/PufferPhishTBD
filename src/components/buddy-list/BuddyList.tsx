@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useRoomsStore, RoomSummary } from "../../stores/rooms";
 import { useSettingsStore } from "../../stores/settings";
@@ -20,7 +20,7 @@ function groupRooms(rooms: RoomSummary[]): GroupedRooms {
   };
 }
 
-function RoomItem({ room, isSelected, onSelect }: {
+const RoomItem = React.memo(function RoomItem({ room, isSelected, onSelect }: {
   room: RoomSummary;
   isSelected: boolean;
   onSelect: () => void;
@@ -99,7 +99,7 @@ function RoomItem({ room, isSelected, onSelect }: {
       )}
     </>
   );
-}
+});
 
 function CollapsibleGroup({ title, children, count, icon, indent }: {
   title: string;
