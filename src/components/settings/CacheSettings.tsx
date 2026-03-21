@@ -100,7 +100,7 @@ export default function CacheSettings() {
           onClick={() => setShowConfirm(true)}
           disabled={clearing || (cacheInfo?.file_count ?? 0) === 0}
         >
-          {clearing ? "Clearing..." : "??? Clear Cache"}
+          {clearing ? "Clearing..." : "🗑️ Clear Cache"}
         </button>
 
         {status && <div className={styles.statusMsg}>{status}</div>}

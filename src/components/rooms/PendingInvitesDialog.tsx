@@ -68,7 +68,7 @@ export default function PendingInvitesDialog({ onClose, onAccepted }: PendingInv
     <div className={styles.overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()}>
         <Window
-          title="?? Pending Invites"
+          title="📨 Pending Invites"
           onClose={onClose}
           showMinimize={false}
           showMaximize={false}

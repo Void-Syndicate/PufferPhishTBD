@@ -36,7 +36,7 @@ export default function JoinRoomDialog({ onClose, onJoined }: JoinRoomDialogProp
     <div className={styles.overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()}>
         <Window
-          title="?? Join Room"
+          title="🚪 Join Room"
           onClose={onClose}
           showMinimize={false}
           showMaximize={false}

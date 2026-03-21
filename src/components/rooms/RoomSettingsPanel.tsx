@@ -137,7 +137,7 @@ export default function RoomSettingsPanel({ roomId, onClose }: RoomSettingsPanel
   };
 
   const handleUpgrade = async () => {
-    if (!confirm("?? Room upgrade is irreversible! All members will be invited to the new room. Continue?")) return;
+    if (!confirm("â ï¸ Room upgrade is irreversible! All members will be invited to the new room. Continue?")) return;
     setError("");
     setLoading(true);
     try {
@@ -160,7 +160,7 @@ export default function RoomSettingsPanel({ roomId, onClose }: RoomSettingsPanel
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()}>
-        <Window title="?? Room Settings" onClose={onClose} width={420}>
+        <Window title="âï¸ Room Settings" onClose={onClose} width={420}>
           <div className={styles.tabBar}>
             {tabs.map((t) => (
               <button
@@ -265,7 +265,7 @@ export default function RoomSettingsPanel({ roomId, onClose }: RoomSettingsPanel
                 <div className={styles.field}>
                   <label className={styles.fieldLabel}>Encryption</label>
                   <div className={`${styles.statusBadge} ${info?.isEncrypted ? styles.statusOn : styles.statusOff}`}>
-                    {info?.isEncrypted ? "?? Encrypted (Megolm)" : "?? Not Encrypted"}
+                    {info?.isEncrypted ? "ð Encrypted (Megolm)" : "🔓 Not Encrypted"}
                   </div>
                 </div>
                 {!info?.isEncrypted && (

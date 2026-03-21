@@ -65,9 +65,28 @@
 }
 
 /* === Global overrides for hardcoded light colors in components === */
+[data-theme="aol-2026"] .aol-app,
+[data-theme="aol-2026"] .aol-app * {
+  color: inherit;
+}
 [data-theme="aol-2026"] .aol-app {
   background: var(--bg-primary);
   color: var(--text-primary);
+}
+[data-theme="aol-2026"] label,
+[data-theme="aol-2026"] legend,
+[data-theme="aol-2026"] fieldset,
+[data-theme="aol-2026"] span,
+[data-theme="aol-2026"] p,
+[data-theme="aol-2026"] h1, [data-theme="aol-2026"] h2,
+[data-theme="aol-2026"] h3, [data-theme="aol-2026"] h4 {
+  color: var(--text-primary) !important;
+}
+[data-theme="aol-2026"] a { color: var(--text-link) !important; }
+[data-theme="aol-2026"] select {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
 }
 
 /* Override hardcoded grays in message bubbles, composers, panels */

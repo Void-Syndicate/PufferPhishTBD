@@ -47,7 +47,7 @@ export default function CreateRoomDialog({ onClose, onCreated }: CreateRoomDialo
     <div className={styles.overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()}>
         <Window
-          title={isDirect ? "?? New Message" : "?? Create Chat Room"}
+          title={isDirect ? "✉️ New Message" : "💬 Create Chat Room"}
           onClose={onClose}
           showMinimize={false}
           showMaximize={false}
@@ -93,7 +93,7 @@ export default function CreateRoomDialog({ onClose, onCreated }: CreateRoomDialo
                   checked={isEncrypted}
                   onChange={(e) => setIsEncrypted(e.target.checked)}
                 />
-                ?? Encrypted
+                🔒 Encrypted
               </label>
             </div>
             {error && <div className={styles.error}>{error}</div>}

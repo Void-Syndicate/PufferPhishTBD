@@ -60,7 +60,7 @@ export default function IncomingVerificationDialog() {
     <div className={styles.overlay}>
       <div onClick={(e) => e.stopPropagation()}>
         <Window
-          title="?? Verification Request"
+          title="🔐 Verification Request"
           onClose={handleReject}
           showMinimize={false}
           showMaximize={false}

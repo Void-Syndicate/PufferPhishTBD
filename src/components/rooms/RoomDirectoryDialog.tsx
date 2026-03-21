@@ -61,7 +61,7 @@ export default function RoomDirectoryDialog({ onClose, onJoined }: RoomDirectory
     <div className={styles.overlay} onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()}>
         <Window
-          title="?? Room Directory � AOL Keyword"
+          title="🔍 Room Directory  AOL Keyword"
           onClose={onClose}
           showMinimize={false}
           showMaximize={false}

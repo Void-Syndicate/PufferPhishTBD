@@ -71,7 +71,7 @@ export default function LockScreen({ onUnlocked }: LockScreenProps) {
   return (
     <div className={styles.lockBackdrop}>
       <Window
-        title="?? PufferChat Locked"
+        title="🔒 PufferChat Locked"
         showMinimize={false}
         showMaximize={false}
         showClose={false}
