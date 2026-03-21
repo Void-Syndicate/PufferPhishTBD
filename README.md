@@ -1,10 +1,18 @@
-# 🐡 PufferChat
+<p align="center">
+  <img src="assets/pufferchat-logo.png" alt="PufferChat" width="400" />
+</p>
 
-> *"You've Got Mail... Encrypted."*
+<h1 align="center">PufferChat</h1>
+
+<p align="center"><em>"You've Got Mail... Encrypted."</em></p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.1.0-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/protocol-Matrix-green" alt="Matrix" />
+  <img src="https://img.shields.io/badge/license-MIT-yellow" alt="License" />
+</p>
 
 A custom **Matrix protocol** communication client with a retro **AOL Instant Messenger** aesthetic, built as a native desktop application. Full Element-level functionality with E2EE by default, zero telemetry, and a plugin system — wrapped in nostalgic 90s UI.
-
-![PufferChat](https://img.shields.io/badge/version-1.0.0-blue) ![Matrix](https://img.shields.io/badge/protocol-Matrix-green) ![License](https://img.shields.io/badge/license-MIT-yellow)
 
 ---
 
