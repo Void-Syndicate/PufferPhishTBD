@@ -75,6 +75,15 @@ npm run tauri dev
 npm run tauri build
 ```
 
+## 🔄 CI/CD
+
+- `CI` runs on pull requests and pushes to `main`, checks version sync, builds the frontend, runs Rust tests, and smoke-builds the Tauri desktop app on Linux, Windows, and macOS.
+- `Release` runs when a GitHub release is published and uploads Windows, macOS, and Linux bundles to that release.
+- Release tags must match the app version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json` (for example, `v1.0.0`).
+- Optional signing secrets:
+  `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD`, `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `KEYCHAIN_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`.
+  If those secrets are not configured, the workflow still publishes unsigned artifacts.
+
 ## 🚀 Quick Start
 
 1. Launch PufferChat
