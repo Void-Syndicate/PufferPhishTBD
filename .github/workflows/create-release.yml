@@ -1,0 +1,86 @@
+name: Create Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - package.json
+      - src-tauri/Cargo.toml
+      - src-tauri/tauri.conf.json
+      - .github/scripts/check-version-sync.mjs
+      - .github/workflows/create-release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: create-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check app version sync
+        run: node .github/scripts/check-version-sync.mjs
+
+      - name: Resolve release metadata
+        id: release
+        run: |
+          APP_VERSION="$(node -e "const fs = require('fs'); process.stdout.write(JSON.parse(fs.readFileSync('package.json', 'utf8')).version)")"
+          RELEASE_TAG="v$APP_VERSION"
+          RELEASE_TITLE="PufferChat v$APP_VERSION"
+
+          if [[ "$APP_VERSION" == *-* ]]; then
+            IS_PRERELEASE=true
+          else
+            IS_PRERELEASE=false
+          fi
+
+          echo "version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "title=$RELEASE_TITLE" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Check for existing GitHub release
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${{ steps.release.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release ${{ steps.release.outputs.tag }} already exists. Nothing to create."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub release
+        if: steps.existing.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ steps.release.outputs.prerelease }}" == "true" ]]; then
+            gh release create "${{ steps.release.outputs.tag }}" \
+              --target "$GITHUB_SHA" \
+              --title "${{ steps.release.outputs.title }}" \
+              --generate-notes \
+              --prerelease
+          else
+            gh release create "${{ steps.release.outputs.tag }}" \
+              --target "$GITHUB_SHA" \
+              --title "${{ steps.release.outputs.title }}" \
+              --generate-notes
+          fi
