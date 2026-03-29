@@ -1,0 +1,72 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+}
+
+.dialogBody {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.description {
+  margin: 0;
+  font-family: var(--font-system);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--aol-black);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-family: var(--font-system);
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--aol-black);
+}
+
+.textarea {
+  min-height: 84px;
+  resize: vertical;
+  padding: 6px 8px;
+  font-family: var(--font-system);
+  font-size: 11px;
+  color: var(--aol-black);
+  background: var(--aol-white);
+  border: 2px solid;
+  border-color: var(--win-border-dark) var(--win-border-light) var(--win-border-light) var(--win-border-dark);
+}
+
+.hint {
+  font-family: var(--font-system);
+  font-size: 10px;
+  color: var(--win-border-shadow);
+}
+
+.error {
+  color: #cc0000;
+  font-family: var(--font-system);
+  font-size: 10px;
+  padding: 4px 6px;
+  background: #fff0f0;
+  border: 1px solid #cc0000;
+}
+
+.buttonRow {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--win-border-shadow);
+}

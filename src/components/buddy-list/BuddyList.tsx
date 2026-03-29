@@ -5,7 +5,9 @@ import { useSettingsStore } from "../../stores/settings";
 import { usePresenceStore } from "../../stores/presence";
 import { useSpaces } from "../../hooks/useSpaces";
 import { useSpacesStore, SpaceChild } from "../../stores/spaces";
+import { useModeration } from "../../hooks/useModeration";
 import Avatar from "../retro/Avatar";
+import ModerationDialog from "../moderation/ModerationDialog";
 import styles from "./BuddyList.module.css";
 
 interface GroupedRooms {
@@ -29,8 +31,10 @@ const RoomItem = React.memo(function RoomItem({ room, isSelected, onSelect }: {
   const name = room.name || room.roomId;
   const hasUnread = room.unreadCount > 0;
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  const [showReportDialog, setShowReportDialog] = useState(false);
   const notifLevel = useSettingsStore((s) => s.getRoomNotification(room.roomId));
   const setRoomNotification = useSettingsStore((s) => s.setRoomNotification);
+  const { reportRoom } = useModeration();
 
   const handleCtx = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -94,8 +98,20 @@ const RoomItem = React.memo(function RoomItem({ room, isSelected, onSelect }: {
           <div style={{ padding: "3px 12px", cursor: "pointer", background: notifLevel === "mentions" ? "var(--aol-blue)" : "transparent", color: notifLevel === "mentions" ? "white" : "black" }} onClick={() => { setRoomNotification(room.roomId, "mentions"); setCtxMenu(null); }}>{"\uD83D\uDCAC"} Mentions Only</div>
           <div style={{ padding: "3px 12px", cursor: "pointer", background: notifLevel === "mute" ? "var(--aol-blue)" : "transparent", color: notifLevel === "mute" ? "white" : "black" }} onClick={() => { setRoomNotification(room.roomId, "mute"); setCtxMenu(null); }}>{"\uD83D\uDD15"} Mute</div>
           <div style={{ height: "1px", background: "var(--win-border-shadow)", margin: "2px 0" }} />
+          <div style={{ padding: "3px 12px", cursor: "pointer", color: "#A04A00" }} onClick={() => { setShowReportDialog(true); setCtxMenu(null); }}>{"\u26A0\uFE0F"} Report Room</div>
           <div style={{ padding: "3px 12px", cursor: "pointer", color: "#CC0000" }} onClick={handleLeave}>{"\uD83D\uDEAA"} Leave Room</div>
         </div>
+      )}
+      {showReportDialog && (
+        <ModerationDialog
+          title="Report Room"
+          description={`Send a moderation report for ${name}.`}
+          confirmLabel="Report Room"
+          onClose={() => setShowReportDialog(false)}
+          onConfirm={(reason) => reportRoom(room.roomId, reason)}
+          reasonLabel="Reason"
+          reasonPlaceholder="Describe what is wrong with this room."
+        />
       )}
     </>
   );

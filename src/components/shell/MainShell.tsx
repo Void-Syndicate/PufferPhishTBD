@@ -16,6 +16,7 @@ import { useCall } from "../../hooks/useCall";
 import { HourglassSpinner } from "../common/LoadingStates";
 import { EmptyState } from "../common/EmptyStates";
 import AccountSwitcher from "../settings/AccountSwitcher";
+import { useModerationStore } from "../../stores/moderation";
 import styles from "./MainShell.module.css";
 
 // Lazy-loaded panels for code splitting
@@ -56,6 +57,7 @@ export default function MainShell() {
   const displayName = useAuthStore((s) => s.displayName);
   const userId = useAuthStore((s) => s.userId);
   const logout = useAuthStore((s) => s.logout);
+  const clearModeration = useModerationStore((s) => s.clear);
   const [activeDialog, setActiveDialog] = useState<DialogType>(null);
   const { lockApp } = useEncryption();
   const autoLockEnabled = useEncryptionStore((s) => s.autoLockEnabled);
@@ -164,6 +166,7 @@ export default function MainShell() {
         <div className={styles.toolSpacer} />
         <button className={styles.toolBtn} onClick={async () => {
           try { await invoke("matrix_logout"); } catch (e) { console.error("Logout failed:", e); }
+          clearModeration();
           logout();
         }} aria-label="Sign out">{"\uD83D\uDEAA"} Sign Off</button>
       </div>

@@ -50,6 +50,70 @@
   gap: 10px;
 }
 
+.modeToggle {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.modeButton {
+  min-width: 130px;
+}
+
+.modeButtonActive {
+  background: #DCEBFF;
+  border-color: #FFFFFF #365C8D #365C8D #FFFFFF;
+  font-weight: bold;
+}
+
+.discoveryRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.discoveryInput {
+  flex: 1;
+}
+
+.discoveryButton {
+  margin-bottom: 2px;
+  min-width: 78px;
+}
+
+.discoveryHint {
+  margin-top: -4px;
+  font-size: 9px;
+  color: var(--win-border-shadow);
+  line-height: 1.4;
+}
+
+.discoveryNote {
+  background: #F2F7FF;
+  border: 1px solid #6A92C7;
+  color: #1D3F73;
+  font-size: 10px;
+  padding: 4px 8px;
+}
+
+.secondaryActions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.browserProviders {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.browserProviderButton {
+  min-width: 148px;
+}
+
 .actions {
   display: flex;
   justify-content: center;
