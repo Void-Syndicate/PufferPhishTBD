@@ -4,6 +4,21 @@ on:
   release:
     types:
       - published
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Release tag to build and publish
+        required: true
+        type: string
+      release_id:
+        description: Existing GitHub release database ID
+        required: true
+        type: string
+      prerelease:
+        description: Whether the target release is a prerelease
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -19,11 +34,28 @@ jobs:
   verify-release:
     name: Verify Release
     runs-on: ubuntu-22.04
+    outputs:
+      tag_name: ${{ steps.context.outputs.tag_name }}
+      release_id: ${{ steps.context.outputs.release_id }}
+      prerelease: ${{ steps.context.outputs.prerelease }}
 
     steps:
+      - name: Resolve release context
+        id: context
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "tag_name=${{ inputs.tag_name }}" >> "$GITHUB_OUTPUT"
+            echo "release_id=${{ inputs.release_id }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=${{ inputs.prerelease }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag_name=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+            echo "release_id=${{ github.event.release.id }}" >> "$GITHUB_OUTPUT"
+            echo "prerelease=${{ github.event.release.prerelease }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ steps.context.outputs.tag_name }}
 
       - name: Install Linux system dependencies
         run: |
@@ -51,7 +83,7 @@ jobs:
         run: npm run check:versions
 
       - name: Ensure release tag matches app version
-        run: node .github/scripts/check-version-sync.mjs --tag "${{ github.event.release.tag_name }}"
+        run: node .github/scripts/check-version-sync.mjs --tag "${{ steps.context.outputs.tag_name }}"
 
       - name: Build frontend
         run: npm run build
@@ -88,7 +120,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ needs.verify-release.outputs.tag_name }}
 
       - name: Install Linux system dependencies
         if: matrix.runner == 'ubuntu-22.04'
@@ -174,8 +206,8 @@ jobs:
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
         with:
-          releaseId: ${{ github.event.release.id }}
-          tagName: ${{ github.event.release.tag_name }}
+          releaseId: ${{ needs.verify-release.outputs.release_id }}
+          tagName: ${{ needs.verify-release.outputs.tag_name }}
           releaseDraft: false
-          prerelease: ${{ github.event.release.prerelease }}
+          prerelease: ${{ needs.verify-release.outputs.prerelease }}
           args: ${{ matrix.args }}

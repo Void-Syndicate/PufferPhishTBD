@@ -13,6 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -60,8 +61,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view "${{ steps.release.outputs.tag }}" >/dev/null 2>&1; then
+          if gh release view "${{ steps.release.outputs.tag }}" --json databaseId >/tmp/release.json 2>/dev/null; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "release_id=$(node -e "const fs = require('fs'); process.stdout.write(String(JSON.parse(fs.readFileSync('/tmp/release.json', 'utf8')).databaseId))")" >> "$GITHUB_OUTPUT"
             echo "Release ${{ steps.release.outputs.tag }} already exists. Nothing to create."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -84,3 +86,24 @@ jobs:
               --title "${{ steps.release.outputs.title }}" \
               --generate-notes
           fi
+
+      - name: Resolve release ID
+        if: steps.existing.outputs.exists != 'true'
+        id: release-id
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${{ steps.release.outputs.tag }}" --json databaseId >/tmp/release.json
+          echo "release_id=$(node -e "const fs = require('fs'); process.stdout.write(String(JSON.parse(fs.readFileSync('/tmp/release.json', 'utf8')).databaseId))")" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger packaging workflow
+        if: steps.existing.outputs.exists != 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ steps.existing.outputs.release_id || steps.release-id.outputs.release_id }}
+        run: |
+          gh workflow run release.yml \
+            --ref main \
+            -f tag_name="${{ steps.release.outputs.tag }}" \
+            -f release_id="$RELEASE_ID" \
+            -f prerelease="${{ steps.release.outputs.prerelease }}"
