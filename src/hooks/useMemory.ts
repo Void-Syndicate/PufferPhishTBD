@@ -14,7 +14,7 @@ export function useMemoryMonitor(intervalMs: number = 30000) {
   const lastUsedRef = useRef(0);
 
   useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return;
+    if (!import.meta.env.DEV) return;
 
     const perf = performance as unknown as { memory?: MemoryInfo };
     if (!perf.memory) {
