@@ -8,8 +8,11 @@ import { useAuthStore } from "../../stores/auth";
 import { useReadReceiptStore } from "../../stores/readReceipts";
 import { useEncryptionStore } from "../../stores/encryption";
 import { useEncryption } from "../../hooks/useEncryption";
+import { useModeration } from "../../hooks/useModeration";
+import { useModerationStore } from "../../stores/moderation";
 import ReactionPicker from "./ReactionPicker";
 import Avatar from "../retro/Avatar";
+import ModerationDialog from "../moderation/ModerationDialog";
 import styles from "./MessageBubble.module.css";
 
 interface MessageBubbleProps {
@@ -166,10 +169,16 @@ function MessageBubbleInner({ message, roomId }: MessageBubbleProps) {
   const getReadBy = useReadReceiptStore((s) => s.getReadBy);
   const userVerifications = useEncryptionStore((s) => s.userVerifications);
   const { getUserVerificationStatus } = useEncryption();
+  const { ignoreUser, unignoreUser, reportMessage } = useModeration();
+  const ignoredUsers = useModerationStore((s) => s.ignoredUsers);
   const isSelf = message.sender === userId;
+  const isIgnoredSender = ignoredUsers.includes(message.sender);
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [showIgnoreDialog, setShowIgnoreDialog] = useState(false);
+  const [showUnignoreDialog, setShowUnignoreDialog] = useState(false);
+  const [showReportDialog, setShowReportDialog] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Fetch verification status for sender if not cached
@@ -185,11 +194,11 @@ function MessageBubbleInner({ message, roomId }: MessageBubbleProps) {
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const menuWidth = 180;
-    const menuHeight = 160;
+    const menuHeight = isSelf ? 160 : 240;
     const x = Math.min(e.clientX, window.innerWidth - menuWidth);
     const y = Math.min(e.clientY, window.innerHeight - menuHeight);
     setContextMenu({ x, y });
-  }, []);
+  }, [isSelf]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -234,12 +243,20 @@ function MessageBubbleInner({ message, roomId }: MessageBubbleProps) {
     });
   }, [message.formattedBody]);
 
-  const readBy = getReadBy(roomId, message.eventId).filter((uid) => uid !== userId);
+  const readBy = getReadBy(roomId, message.eventId).filter(
+    (uid) => uid !== userId && !ignoredUsers.includes(uid),
+  );
 
   const displayName = message.senderName || message.sender;
   const time = new Date(message.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
   const bubbleClass = [styles.bubble, message.isRedacted ? styles.redacted : ""].filter(Boolean).join(" ");
+  const visibleReactions = message.reactions
+    .map((reaction) => ({
+      ...reaction,
+      senders: reaction.senders.filter((sender) => !ignoredUsers.includes(sender)),
+    }))
+    .filter((reaction) => reaction.senders.length > 0);
 
   // Render media content based on message type
   const renderMediaContent = () => {
@@ -302,9 +319,9 @@ function MessageBubbleInner({ message, roomId }: MessageBubbleProps) {
         </div>
       )}
 
-      {message.reactions.length > 0 && (
+      {visibleReactions.length > 0 && (
         <div className={styles.reactions}>
-          {message.reactions.map((r) => (
+          {visibleReactions.map((r) => (
             <span
               key={r.emoji}
               className={styles.reactionBadge}
@@ -345,6 +362,30 @@ function MessageBubbleInner({ message, roomId }: MessageBubbleProps) {
             &#x1F600; React
           </button>
           <div className={styles.contextSep} />
+          {!isSelf && (
+            <>
+              <button
+                className={styles.contextMenuItem}
+                onClick={() => {
+                  setShowIgnoreDialog(!isIgnoredSender);
+                  setShowUnignoreDialog(isIgnoredSender);
+                  setContextMenu(null);
+                }}
+              >
+                {isIgnoredSender ? "&#x267B; Unblock / Unignore User" : "&#x1F6AB; Block / Ignore User"}
+              </button>
+              <button
+                className={styles.contextMenuItem}
+                onClick={() => {
+                  setShowReportDialog(true);
+                  setContextMenu(null);
+                }}
+              >
+                &#x26A0; Report Message
+              </button>
+              <div className={styles.contextSep} />
+            </>
+          )}
           {isSelf && (
             <button className={styles.contextMenuItem} onClick={handleDelete}>&#x2716; Delete</button>
           )}
@@ -355,6 +396,39 @@ function MessageBubbleInner({ message, roomId }: MessageBubbleProps) {
         <ReactionPicker
           onSelect={handleReaction}
           onClose={() => setShowReactionPicker(false)}
+        />
+      )}
+
+      {showIgnoreDialog && (
+        <ModerationDialog
+          title="Block / Ignore User"
+          description={`Hide messages, reactions, and other chat activity from ${displayName}?`}
+          confirmLabel="Block User"
+          onClose={() => setShowIgnoreDialog(false)}
+          onConfirm={async () => { await ignoreUser(message.sender); }}
+        />
+      )}
+
+      {showUnignoreDialog && (
+        <ModerationDialog
+          title="Unblock / Unignore User"
+          description={`Allow ${displayName} to appear in the timeline again?`}
+          confirmLabel="Unblock User"
+          onClose={() => setShowUnignoreDialog(false)}
+          onConfirm={async () => { await unignoreUser(message.sender); }}
+        />
+      )}
+
+      {showReportDialog && (
+        <ModerationDialog
+          title="Report Message"
+          description={`Send a moderation report for the selected message from ${displayName}.`}
+          confirmLabel="Report Message"
+          onClose={() => setShowReportDialog(false)}
+          onConfirm={(reason) => reportMessage(roomId, message.eventId, reason)}
+          reasonLabel="Reason"
+          reasonPlaceholder="Describe what is wrong with this message."
+          reasonHint="PufferChat submits Matrix event reports with a strong abuse score by default."
         />
       )}
     </div>

@@ -5,13 +5,13 @@
 ///
 /// SECURITY: No secrets are logged. All errors are sanitized before
 /// returning to the frontend.
-
-use tauri::State;
+use tauri::{AppHandle, State};
+use tauri_plugin_shell::ShellExt;
 
 use crate::error::AppError;
 use crate::matrix::client::{
-    BannedUser, InvitedRoomSummary, LoginResult, MatrixClient, PaginationResult,
-    PowerLevelInfo, PublicRoomInfo, RoomDetails, RoomMember, RoomSummary, TimelineMessage,
+    BannedUser, InvitedRoomSummary, LoginResult, MatrixClient, PaginationResult, PowerLevelInfo,
+    PublicRoomInfo, RoomDetails, RoomMember, RoomSummary, TimelineMessage,
 };
 use crate::matrix::crypto;
 use crate::matrix::media;
@@ -22,103 +22,129 @@ use crate::AppState;
 // Auth commands (existing)
 // ----------------------------------------------------------
 
-/// Login to Matrix homeserver with password
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct HomeserverDiscoveryResult {
+    pub server_name: String,
+    pub homeserver_url: String,
+}
+
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthIdentityProvider {
+    pub id: String,
+    pub name: String,
+    pub brand: Option<String>,
+    pub icon: Option<String>,
+}
+
+#[derive(serde::Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthFlowDiscoveryResult {
+    pub homeserver_url: String,
+    pub supports_password_login: bool,
+    pub supports_sso_login: bool,
+    pub supports_token_login: bool,
+    pub advertised_login_types: Vec<String>,
+    pub identity_providers: Vec<AuthIdentityProvider>,
+}
+
+fn parse_server_name_from_matrix_id(
+    matrix_id: &str,
+) -> Result<matrix_sdk::ruma::OwnedServerName, AppError> {
+    let trimmed = matrix_id.trim();
+
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidInput("Matrix ID is required".into()));
+    }
+
+    let user_id: matrix_sdk::ruma::OwnedUserId = trimmed.try_into().map_err(|_| {
+        AppError::InvalidInput("Enter a full Matrix ID like @user:example.org".into())
+    })?;
+
+    Ok(user_id.server_name().to_owned())
+}
+
+/// Discover a homeserver from a full Matrix user ID using server discovery.
 #[tauri::command]
-pub async fn matrix_login(
-    state: State<'_, AppState>,
-    homeserver: String,
-    username: String,
-    password: String,
-) -> Result<LoginResult, AppError> {
-    // Check if app is locked
-    if *state.is_locked.lock().await {
-        return Err(AppError::Locked);
+pub async fn discover_homeserver_from_matrix_id(
+    matrix_id: String,
+) -> Result<HomeserverDiscoveryResult, AppError> {
+    let server_name = parse_server_name_from_matrix_id(&matrix_id)?;
+
+    let client = matrix_sdk::Client::builder()
+        .server_name_or_homeserver_url(server_name.as_str())
+        .build()
+        .await
+        .map_err(|e| {
+            AppError::Auth(format!(
+                "Failed to discover homeserver for {}: {}",
+                server_name, e
+            ))
+        })?;
+
+    Ok(HomeserverDiscoveryResult {
+        server_name: server_name.to_string(),
+        homeserver_url: client.homeserver().to_string(),
+    })
+}
+
+fn validate_homeserver_url(homeserver: &str) -> Result<String, AppError> {
+    let trimmed = homeserver.trim();
+
+    if trimmed.is_empty() {
+        return Err(AppError::Auth("Homeserver URL is required.".into()));
     }
 
-    log::info!("Login attempt to homeserver: {}", homeserver);
-
-    // Validate inputs
-    if homeserver.is_empty() {
-        return Err(AppError::Auth("Homeserver URL is required".into()));
-    }
-    if username.is_empty() {
-        return Err(AppError::Auth("Username is required".into()));
-    }
-    if password.is_empty() {
-        return Err(AppError::Auth("Password is required".into()));
-    }
-
-    // Rate limit login attempts
-    phase8::check_rate_limit()?;
-
-    // Strict URL validation
-    let parsed_url = url::Url::parse(&homeserver)
-        .map_err(|_| AppError::Auth("Invalid homeserver URL".into()))?;
+    let parsed_url =
+        url::Url::parse(trimmed).map_err(|_| AppError::Auth("Invalid homeserver URL.".into()))?;
 
     let scheme = parsed_url.scheme();
     let host = parsed_url
         .host_str()
-        .ok_or_else(|| AppError::Auth("Homeserver URL must have a valid host".into()))?;
+        .ok_or_else(|| AppError::Auth("Homeserver URL must have a valid host.".into()))?;
 
     if !parsed_url.username().is_empty() || parsed_url.password().is_some() {
         return Err(AppError::Auth(
-            "Homeserver URL must not contain credentials".into(),
+            "Homeserver URL must not contain credentials.".into(),
         ));
     }
 
     let is_local = host == "localhost" || host == "127.0.0.1" || host == "::1";
     if scheme != "https" && !is_local {
         return Err(AppError::Auth(
-            "Homeserver must use HTTPS for security".into(),
+            "Homeserver must use HTTPS for security.".into(),
         ));
     }
     if scheme != "https" && scheme != "http" {
-        return Err(AppError::Auth("Invalid URL scheme".into()));
+        return Err(AppError::Auth("Invalid URL scheme.".into()));
     }
 
-    let (client, result, access_token) = match MatrixClient::login(&homeserver, &username, password.clone()).await {
-        Ok(r) => r,
-        Err(e) => {
-            let err_str = format!("{}", e);
-            if err_str.contains("crypto store")
-                || err_str.contains("CryptoStore")
-                || err_str.contains("olm")
-                || err_str.contains("SqliteStore")
-                || err_str.contains("database")
-                || err_str.contains("cipher")
-            {
-                log::warn!("Crypto store error on login, clearing and retrying: {}", e);
-                let _ = crate::matrix::client::clear_crypto_store();
-                let _ = crate::matrix::client::clear_db_passphrase();
-                MatrixClient::login(&homeserver, &username, password).await?
-            } else {
-                return Err(e);
-            }
-        }
-    };
+    Ok(trimmed.to_owned())
+}
 
-    keychain::store_session(
-        &result.user_id,
-        &homeserver,
-        &access_token,
-        &result.device_id,
-    )?;
+async fn activate_authenticated_client(
+    state: &AppState,
+    homeserver: &str,
+    client: MatrixClient,
+    result: LoginResult,
+    access_token: &str,
+) -> Result<LoginResult, AppError> {
+    keychain::store_session(&result.user_id, homeserver, access_token, &result.device_id)?;
 
-    // Store access token per-account for multi-account switching
     let token_key = format!("account_token_{}", &result.user_id);
-    keychain::store_secret(&token_key, &access_token)?;
+    keychain::store_secret(&token_key, access_token)?;
 
-    // Auto-register this account for multi-account switching
     let account = phase8::AccountInfo {
         user_id: result.user_id.clone(),
-        homeserver: homeserver.clone(),
+        homeserver: homeserver.to_owned(),
         display_name: result.display_name.clone(),
         device_id: result.device_id.clone(),
         is_active: true,
         avatar_url: None,
     };
     if let Ok(mut accounts) = phase8::list_accounts_impl() {
-        for a in accounts.iter_mut() {
+        for a in &mut accounts {
             a.is_active = false;
         }
         if let Some(existing) = accounts.iter_mut().find(|a| a.user_id == result.user_id) {
@@ -134,15 +160,194 @@ pub async fn matrix_login(
     let mut client_lock = state.matrix_client.lock().await;
     *client_lock = Some(client);
 
-    log::info!("Login successful for user: {}", result.user_id);
+    log::info!("Authentication successful for user: {}", result.user_id);
     Ok(result)
+}
+
+/// Discover the login methods advertised by a homeserver.
+#[tauri::command]
+pub async fn discover_auth_flows(homeserver: String) -> Result<AuthFlowDiscoveryResult, AppError> {
+    let homeserver = validate_homeserver_url(&homeserver)?;
+
+    let client = matrix_sdk::Client::builder()
+        .homeserver_url(&homeserver)
+        .build()
+        .await
+        .map_err(|e| AppError::Auth(format!("Failed to connect to homeserver: {}", e)))?;
+
+    let flows = client
+        .matrix_auth()
+        .get_login_types()
+        .await
+        .map_err(|e| AppError::Auth(format!("Failed to discover login methods: {}", e)))?;
+
+    let mut supports_password_login = false;
+    let mut supports_sso_login = false;
+    let mut supports_token_login = false;
+    let mut advertised_login_types = Vec::new();
+    let mut identity_providers = Vec::new();
+
+    for flow in flows.flows {
+        advertised_login_types.push(flow.login_type().to_owned());
+
+        match flow {
+            matrix_sdk::ruma::api::client::session::get_login_types::v3::LoginType::Password(_) => {
+                supports_password_login = true;
+            }
+            matrix_sdk::ruma::api::client::session::get_login_types::v3::LoginType::Token(_) => {
+                supports_token_login = true;
+            }
+            matrix_sdk::ruma::api::client::session::get_login_types::v3::LoginType::Sso(sso) => {
+                supports_sso_login = true;
+                identity_providers.extend(sso.identity_providers.into_iter().map(|provider| {
+                    AuthIdentityProvider {
+                        id: provider.id,
+                        name: provider.name,
+                        brand: provider.brand.map(|brand| brand.as_str().to_owned()),
+                        icon: provider.icon.map(|icon| icon.to_string()),
+                    }
+                }));
+            }
+            _ => {}
+        }
+    }
+
+    Ok(AuthFlowDiscoveryResult {
+        homeserver_url: client.homeserver().to_string(),
+        supports_password_login,
+        supports_sso_login,
+        supports_token_login,
+        advertised_login_types,
+        identity_providers,
+    })
+}
+
+/// Login to Matrix homeserver with password
+#[tauri::command]
+pub async fn matrix_login(
+    state: State<'_, AppState>,
+    homeserver: String,
+    username: String,
+    password: String,
+) -> Result<LoginResult, AppError> {
+    if *state.is_locked.lock().await {
+        return Err(AppError::Locked);
+    }
+
+    let homeserver = validate_homeserver_url(&homeserver)?;
+    let username = username.trim().to_owned();
+
+    if username.is_empty() {
+        return Err(AppError::Auth("Username is required.".into()));
+    }
+    if password.is_empty() {
+        return Err(AppError::Auth("Password is required.".into()));
+    }
+
+    log::info!("Password login attempt to homeserver: {}", homeserver);
+    phase8::check_rate_limit()?;
+
+    let (client, result, access_token) =
+        match MatrixClient::login(&homeserver, &username, password.clone()).await {
+            Ok(r) => r,
+            Err(e) => {
+                let err_str = format!("{}", e);
+                if err_str.contains("crypto store")
+                    || err_str.contains("CryptoStore")
+                    || err_str.contains("olm")
+                    || err_str.contains("SqliteStore")
+                    || err_str.contains("database")
+                    || err_str.contains("cipher")
+                {
+                    log::warn!("Crypto store error on login, clearing and retrying: {}", e);
+                    let _ = crate::matrix::client::clear_crypto_store();
+                    let _ = crate::matrix::client::clear_db_passphrase();
+                    MatrixClient::login(&homeserver, &username, password).await?
+                } else {
+                    return Err(e);
+                }
+            }
+        };
+
+    activate_authenticated_client(state.inner(), &homeserver, client, result, &access_token).await
+}
+
+/// Register a new Matrix account with a username and password.
+#[tauri::command]
+pub async fn matrix_register(
+    state: State<'_, AppState>,
+    homeserver: String,
+    username: String,
+    password: String,
+    registration_token: Option<String>,
+) -> Result<LoginResult, AppError> {
+    if *state.is_locked.lock().await {
+        return Err(AppError::Locked);
+    }
+
+    let homeserver = validate_homeserver_url(&homeserver)?;
+    let username = username.trim().to_owned();
+
+    if username.is_empty() {
+        return Err(AppError::Auth("Username is required.".into()));
+    }
+    if username.starts_with('@') || username.contains(':') {
+        return Err(AppError::Auth(
+            "Use only the username part when creating an account, like puffer.".into(),
+        ));
+    }
+    if password.is_empty() {
+        return Err(AppError::Auth("Password is required.".into()));
+    }
+
+    log::info!("Registration attempt to homeserver: {}", homeserver);
+    phase8::check_rate_limit()?;
+
+    let (client, result, access_token) =
+        MatrixClient::register(&homeserver, &username, password, registration_token).await?;
+
+    activate_authenticated_client(state.inner(), &homeserver, client, result, &access_token).await
+}
+
+/// Sign in using the server's browser-based SSO/OIDC-compatible flow.
+#[tauri::command]
+pub async fn matrix_login_sso(
+    state: State<'_, AppState>,
+    app_handle: AppHandle,
+    homeserver: String,
+    identity_provider_id: Option<String>,
+) -> Result<LoginResult, AppError> {
+    if *state.is_locked.lock().await {
+        return Err(AppError::Locked);
+    }
+
+    let homeserver = validate_homeserver_url(&homeserver)?;
+    log::info!("Browser login attempt to homeserver: {}", homeserver);
+    phase8::check_rate_limit()?;
+
+    let open_handle = app_handle.clone();
+    let (client, result, access_token) = MatrixClient::login_with_sso(
+        &homeserver,
+        identity_provider_id.as_deref(),
+        move |sso_url| {
+            let open_handle = open_handle.clone();
+            async move {
+                open_handle
+                    .shell()
+                    .open(&sso_url, None)
+                    .map_err(|e| std::io::Error::other(e.to_string()))?;
+                Ok(())
+            }
+        },
+    )
+    .await?;
+
+    activate_authenticated_client(state.inner(), &homeserver, client, result, &access_token).await
 }
 
 /// Check if saved session exists and restore it
 #[tauri::command]
-pub async fn restore_session(
-    state: State<'_, AppState>,
-) -> Result<Option<LoginResult>, AppError> {
+pub async fn restore_session(state: State<'_, AppState>) -> Result<Option<LoginResult>, AppError> {
     let session = keychain::get_session()?;
 
     let (user_id, homeserver, access_token, device_id) = match session {
@@ -154,10 +359,8 @@ pub async fn restore_session(
 
     // Timeout the entire restore to prevent infinite hang
     let restore_fut = MatrixClient::restore(&homeserver, &access_token, &user_id, &device_id);
-    let restore_result = tokio::time::timeout(
-        std::time::Duration::from_secs(15),
-        restore_fut,
-    ).await;
+    let restore_result =
+        tokio::time::timeout(std::time::Duration::from_secs(15), restore_fut).await;
 
     let client = match restore_result {
         Ok(Ok(client)) => client,
@@ -203,10 +406,7 @@ pub async fn restore_session(
 
 /// Set display name on the Matrix account
 #[tauri::command]
-pub async fn set_display_name(
-    state: State<'_, AppState>,
-    name: String,
-) -> Result<(), AppError> {
+pub async fn set_display_name(state: State<'_, AppState>, name: String) -> Result<(), AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     client
@@ -222,8 +422,7 @@ pub async fn set_display_name(
 /// Logout from Matrix
 #[tauri::command]
 pub async fn matrix_logout(state: State<'_, AppState>) -> Result<(), AppError> {
-    let current_user_id = keychain::get_session()?
-        .map(|(uid, _, _, _)| uid);
+    let current_user_id = keychain::get_session()?.map(|(uid, _, _, _)| uid);
 
     let mut client_lock = state.matrix_client.lock().await;
 
@@ -366,9 +565,7 @@ pub async fn remove_reaction(
 ) -> Result<(), AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
-    client
-        .remove_reaction(&room_id, &reaction_event_id)
-        .await
+    client.remove_reaction(&room_id, &reaction_event_id).await
 }
 
 /// Send typing indicator
@@ -406,6 +603,35 @@ pub async fn get_room_members(
     client.get_room_members(&room_id).await
 }
 
+/// Get the current Matrix ignore list.
+#[tauri::command]
+pub async fn get_ignored_users(state: State<'_, AppState>) -> Result<Vec<String>, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.get_ignored_users().await
+}
+
+/// Add a user to the Matrix ignore list.
+#[tauri::command]
+pub async fn ignore_user(
+    state: State<'_, AppState>,
+    user_id: String,
+) -> Result<Vec<String>, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.ignore_user(&user_id).await
+}
+
+/// Remove a user from the Matrix ignore list.
+#[tauri::command]
+pub async fn unignore_user(
+    state: State<'_, AppState>,
+    user_id: String,
+) -> Result<Vec<String>, AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.unignore_user(&user_id).await
+}
 
 /// Search messages in a room or globally
 #[tauri::command]
@@ -418,7 +644,9 @@ pub async fn search_messages(
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     let limit = limit.unwrap_or(50).min(200);
-    client.search_messages(room_id.as_deref(), &query, limit).await
+    client
+        .search_messages(room_id.as_deref(), &query, limit)
+        .await
 }
 
 /// Create a new room
@@ -433,7 +661,9 @@ pub async fn create_room(
 ) -> Result<String, AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
-    client.create_room(name, topic, is_direct, invite_user_ids, is_encrypted).await
+    client
+        .create_room(name, topic, is_direct, invite_user_ids, is_encrypted)
+        .await
 }
 
 /// Join a room by ID or alias
@@ -449,10 +679,7 @@ pub async fn join_room(
 
 /// Leave a room
 #[tauri::command]
-pub async fn leave_room(
-    state: State<'_, AppState>,
-    room_id: String,
-) -> Result<(), AppError> {
+pub async fn leave_room(state: State<'_, AppState>, room_id: String) -> Result<(), AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     client.leave_room(&room_id).await
@@ -516,10 +743,7 @@ pub async fn accept_invite(
 
 /// Reject a room invite
 #[tauri::command]
-pub async fn reject_invite(
-    state: State<'_, AppState>,
-    room_id: String,
-) -> Result<(), AppError> {
+pub async fn reject_invite(state: State<'_, AppState>, room_id: String) -> Result<(), AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     client.reject_invite(&room_id).await
@@ -715,9 +939,7 @@ pub async fn get_verification_state(
 
 /// Bootstrap cross-signing
 #[tauri::command]
-pub async fn bootstrap_cross_signing(
-    state: State<'_, AppState>,
-) -> Result<(), AppError> {
+pub async fn bootstrap_cross_signing(state: State<'_, AppState>) -> Result<(), AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     crypto::bootstrap_cross_signing(client.inner()).await
@@ -765,9 +987,7 @@ pub async fn verify_user_identity(
 
 /// Enable key backup
 #[tauri::command]
-pub async fn enable_key_backup(
-    state: State<'_, AppState>,
-) -> Result<(), AppError> {
+pub async fn enable_key_backup(state: State<'_, AppState>) -> Result<(), AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     crypto::enable_key_backup(client.inner()).await
@@ -775,9 +995,7 @@ pub async fn enable_key_backup(
 
 /// Disable key backup
 #[tauri::command]
-pub async fn disable_key_backup(
-    state: State<'_, AppState>,
-) -> Result<(), AppError> {
+pub async fn disable_key_backup(state: State<'_, AppState>) -> Result<(), AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     crypto::disable_key_backup(client.inner()).await
@@ -795,9 +1013,7 @@ pub async fn get_key_backup_status(
 
 /// Wait for key backup upload to complete
 #[tauri::command]
-pub async fn wait_for_backup_upload(
-    state: State<'_, AppState>,
-) -> Result<(), AppError> {
+pub async fn wait_for_backup_upload(state: State<'_, AppState>) -> Result<(), AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     crypto::wait_for_backup_upload(client.inner()).await
@@ -805,9 +1021,7 @@ pub async fn wait_for_backup_upload(
 
 /// Setup secret storage (SSSS) and get recovery key
 #[tauri::command]
-pub async fn setup_secret_storage(
-    state: State<'_, AppState>,
-) -> Result<String, AppError> {
+pub async fn setup_secret_storage(state: State<'_, AppState>) -> Result<String, AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     crypto::setup_secret_storage(client.inner()).await
@@ -815,9 +1029,7 @@ pub async fn setup_secret_storage(
 
 /// Check if recovery is enabled
 #[tauri::command]
-pub async fn is_recovery_enabled(
-    state: State<'_, AppState>,
-) -> Result<bool, AppError> {
+pub async fn is_recovery_enabled(state: State<'_, AppState>) -> Result<bool, AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     crypto::is_recovery_enabled(client.inner()).await
@@ -836,9 +1048,7 @@ pub async fn recover_with_key(
 
 /// Reset recovery key
 #[tauri::command]
-pub async fn reset_recovery_key(
-    state: State<'_, AppState>,
-) -> Result<String, AppError> {
+pub async fn reset_recovery_key(state: State<'_, AppState>) -> Result<String, AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     crypto::reset_recovery(client.inner()).await
@@ -856,10 +1066,7 @@ pub async fn get_own_devices(
 
 /// Delete a device
 #[tauri::command]
-pub async fn delete_device(
-    state: State<'_, AppState>,
-    device_id: String,
-) -> Result<(), AppError> {
+pub async fn delete_device(state: State<'_, AppState>, device_id: String) -> Result<(), AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     crypto::delete_device(client.inner(), &device_id).await
@@ -926,9 +1133,7 @@ pub async fn verify_unlock_passphrase(
 
 /// Lock the app
 #[tauri::command]
-pub async fn lock_app(
-    state: State<'_, AppState>,
-) -> Result<(), AppError> {
+pub async fn lock_app(state: State<'_, AppState>) -> Result<(), AppError> {
     let mut locked = state.is_locked.lock().await;
     *locked = true;
     Ok(())
@@ -936,9 +1141,7 @@ pub async fn lock_app(
 
 /// Check if app is locked
 #[tauri::command]
-pub async fn is_app_locked(
-    state: State<'_, AppState>,
-) -> Result<bool, AppError> {
+pub async fn is_app_locked(state: State<'_, AppState>) -> Result<bool, AppError> {
     let locked = state.is_locked.lock().await;
     Ok(*locked)
 }
@@ -1024,7 +1227,6 @@ pub async fn get_media_thumbnail(
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     media::get_media_thumbnail(client.inner(), &mxc_url, width, height).await
 }
-
 
 /// Get cache size info
 #[tauri::command]
@@ -1123,10 +1325,14 @@ pub async fn send_image(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
 
-    let room = client.inner().get_room(&parsed_room_id)
+    let room = client
+        .inner()
+        .get_room(&parsed_room_id)
         .ok_or_else(|| AppError::Matrix("Room not found".into()))?;
 
-    let response = room.send(msg).await
+    let response = room
+        .send(msg)
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     Ok(response.event_id.to_string())
@@ -1161,7 +1367,7 @@ pub async fn send_video(
     let body = caption.unwrap_or_else(|| filename.clone());
 
     use matrix_sdk::ruma::events::room::message::{
-        VideoMessageEventContent, MessageType, RoomMessageEventContent,
+        MessageType, RoomMessageEventContent, VideoMessageEventContent,
     };
     use matrix_sdk::ruma::events::room::MediaSource;
 
@@ -1173,10 +1379,14 @@ pub async fn send_video(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
 
-    let room = client.inner().get_room(&parsed_room_id)
+    let room = client
+        .inner()
+        .get_room(&parsed_room_id)
         .ok_or_else(|| AppError::Matrix("Room not found".into()))?;
 
-    let response = room.send(msg).await
+    let response = room
+        .send(msg)
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     Ok(response.event_id.to_string())
@@ -1223,10 +1433,14 @@ pub async fn send_audio(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
 
-    let room = client.inner().get_room(&parsed_room_id)
+    let room = client
+        .inner()
+        .get_room(&parsed_room_id)
         .ok_or_else(|| AppError::Matrix("Room not found".into()))?;
 
-    let response = room.send(msg).await
+    let response = room
+        .send(msg)
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     Ok(response.event_id.to_string())
@@ -1270,10 +1484,14 @@ pub async fn send_file(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
 
-    let room = client.inner().get_room(&parsed_room_id)
+    let room = client
+        .inner()
+        .get_room(&parsed_room_id)
         .ok_or_else(|| AppError::Matrix("Room not found".into()))?;
 
-    let response = room.send(msg).await
+    let response = room
+        .send(msg)
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     Ok(response.event_id.to_string())
@@ -1300,9 +1518,9 @@ pub async fn resolve_mxc_full_url(
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     media::resolve_mxc_to_http(client.inner(), &mxc_url)
-}// ----------------------------------------------------------
-// Spaces Commands (Phase 5)
-// ----------------------------------------------------------
+} // ----------------------------------------------------------
+  // Spaces Commands (Phase 5)
+  // ----------------------------------------------------------
 
 /// Summary of a child room/subspace in a space
 #[derive(serde::Serialize, Clone, Debug)]
@@ -1352,8 +1570,8 @@ pub async fn create_space(
     // Set room type to m.space via creation_content
     let mut creation = CreationContent::new();
     creation.room_type = Some(RoomType::Space);
-    request.creation_content = Some(Raw::new(&creation)
-        .map_err(|e| AppError::Internal(e.to_string()))?);
+    request.creation_content =
+        Some(Raw::new(&creation).map_err(|e| AppError::Internal(e.to_string()))?);
 
     let mut initial_state: Vec<Raw<matrix_sdk::ruma::events::AnyInitialStateEvent>> = Vec::new();
 
@@ -1371,7 +1589,10 @@ pub async fn create_space(
 
     request.initial_state = initial_state;
 
-    let response = client.inner().send(request).await
+    let response = client
+        .inner()
+        .send(request)
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     Ok(response.room_id.to_string())
@@ -1379,9 +1600,7 @@ pub async fn create_space(
 
 /// Get all joined spaces
 #[tauri::command]
-pub async fn get_spaces(
-    state: State<'_, AppState>,
-) -> Result<Vec<SpaceSummary>, AppError> {
+pub async fn get_spaces(state: State<'_, AppState>) -> Result<Vec<SpaceSummary>, AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
 
@@ -1403,7 +1622,9 @@ pub async fn get_spaces(
         // Count children by looking at m.space.child state events
         let child_count = {
             use matrix_sdk::ruma::events::space::child::SpaceChildEventContent;
-            let events = room.get_state_events_static::<SpaceChildEventContent>().await;
+            let events = room
+                .get_state_events_static::<SpaceChildEventContent>()
+                .await;
             match events {
                 Ok(evts) => evts.len() as u64,
                 Err(_) => 0,
@@ -1436,11 +1657,15 @@ pub async fn get_space_children(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid space ID".into()))?;
 
-    let space_room = client.inner().get_room(&parsed_space_id)
+    let space_room = client
+        .inner()
+        .get_room(&parsed_space_id)
         .ok_or_else(|| AppError::RoomNotFound(space_id.clone()))?;
 
     use matrix_sdk::ruma::events::space::child::SpaceChildEventContent;
-    let child_events = space_room.get_state_events_static::<SpaceChildEventContent>().await
+    let child_events = space_room
+        .get_state_events_static::<SpaceChildEventContent>()
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     let mut children = Vec::new();
@@ -1454,7 +1679,9 @@ pub async fn get_space_children(
 
             use matrix_sdk::deserialized_responses::SyncOrStrippedState;
             let content = match &event {
-                SyncOrStrippedState::Sync(sync_event) => sync_event.as_original().map(|e| &e.content),
+                SyncOrStrippedState::Sync(sync_event) => {
+                    sync_event.as_original().map(|e| &e.content)
+                }
                 SyncOrStrippedState::Stripped(_stripped) => None,
             };
 
@@ -1470,9 +1697,8 @@ pub async fn get_space_children(
                 }
             }
 
-            let parsed_child_id: Result<matrix_sdk::ruma::OwnedRoomId, _> = child_room_id
-                .as_str()
-                .try_into();
+            let parsed_child_id: Result<matrix_sdk::ruma::OwnedRoomId, _> =
+                child_room_id.as_str().try_into();
 
             let (name, topic, num_members, is_space) = if let Ok(ref cid) = parsed_child_id {
                 if let Some(child_room) = client.inner().get_room(cid) {
@@ -1501,9 +1727,7 @@ pub async fn get_space_children(
     }
 
     // Sort by order, then name
-    children.sort_by(|a, b| {
-        a.order.cmp(&b.order).then_with(|| a.name.cmp(&b.name))
-    });
+    children.sort_by(|a, b| a.order.cmp(&b.order).then_with(|| a.name.cmp(&b.name)));
 
     Ok(children)
 }
@@ -1525,7 +1749,9 @@ pub async fn add_space_child(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid space ID".into()))?;
 
-    let space_room = client.inner().get_room(&parsed_space_id)
+    let space_room = client
+        .inner()
+        .get_room(&parsed_space_id)
         .ok_or_else(|| AppError::RoomNotFound(space_id.clone()))?;
 
     use matrix_sdk::ruma::events::space::child::SpaceChildEventContent;
@@ -1548,7 +1774,9 @@ pub async fn add_space_child(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid child room ID".into()))?;
 
-    space_room.send_state_event_for_key(&child_id, content).await
+    space_room
+        .send_state_event_for_key(&child_id, content)
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     Ok(())
@@ -1569,7 +1797,9 @@ pub async fn remove_space_child(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid space ID".into()))?;
 
-    let space_room = client.inner().get_room(&parsed_space_id)
+    let space_room = client
+        .inner()
+        .get_room(&parsed_space_id)
         .ok_or_else(|| AppError::RoomNotFound(space_id.clone()))?;
 
     use matrix_sdk::ruma::events::space::child::SpaceChildEventContent;
@@ -1582,7 +1812,9 @@ pub async fn remove_space_child(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid child room ID".into()))?;
 
-    space_room.send_state_event_for_key(&child_id, content).await
+    space_room
+        .send_state_event_for_key(&child_id, content)
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     Ok(())
@@ -1653,10 +1885,7 @@ pub async fn add_room_alias(
 
 /// Remove room alias
 #[tauri::command]
-pub async fn remove_room_alias(
-    state: State<'_, AppState>,
-    alias: String,
-) -> Result<(), AppError> {
+pub async fn remove_room_alias(state: State<'_, AppState>, alias: String) -> Result<(), AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
     client.remove_room_alias(&alias).await
@@ -1723,7 +1952,9 @@ pub async fn kick_user(
 ) -> Result<(), AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
-    client.kick_user(&room_id, &user_id, reason.as_deref()).await
+    client
+        .kick_user(&room_id, &user_id, reason.as_deref())
+        .await
 }
 
 /// Ban a user from a room
@@ -1775,6 +2006,46 @@ pub async fn set_server_acl(
     client.set_server_acl(&room_id, allow, deny).await
 }
 
+/// Report a room to the homeserver.
+#[tauri::command]
+pub async fn report_room(
+    state: State<'_, AppState>,
+    room_id: String,
+    reason: Option<String>,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.report_room(&room_id, reason.as_deref()).await
+}
+
+/// Report a specific event in a room to the homeserver.
+#[tauri::command]
+pub async fn report_message(
+    state: State<'_, AppState>,
+    room_id: String,
+    event_id: String,
+    reason: Option<String>,
+    score: Option<i32>,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client
+        .report_message(&room_id, &event_id, reason.as_deref(), score)
+        .await
+}
+
+/// Report a user to the homeserver.
+#[tauri::command]
+pub async fn report_user(
+    state: State<'_, AppState>,
+    user_id: String,
+    reason: Option<String>,
+) -> Result<(), AppError> {
+    let client_lock = state.matrix_client.lock().await;
+    let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
+    client.report_user(&user_id, reason.as_deref()).await
+}
+
 // ----------------------------------------------------------
 // VoIP / Calling Commands (Phase 6)
 // ----------------------------------------------------------
@@ -1797,7 +2068,9 @@ pub async fn call_invite(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
 
-    let room = client.inner().get_room(&parsed_room_id)
+    let room = client
+        .inner()
+        .get_room(&parsed_room_id)
         .ok_or_else(|| AppError::RoomNotFound(room_id.clone()))?;
 
     let call_id = voip::generate_call_id();
@@ -1824,12 +2097,15 @@ pub async fn call_invite(
     });
 
     // Send as custom event type m.call.invite
-    room.send_raw("m.call.invite", event_json).await
+    room.send_raw("m.call.invite", event_json)
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     // Get peer info from room members
     let user_id = client.user_id().to_string();
-    let members = room.members(matrix_sdk::RoomMemberships::JOIN).await
+    let members = room
+        .members(matrix_sdk::RoomMemberships::JOIN)
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
     let peer = members.iter().find(|m| m.user_id().to_string() != user_id);
     let peer_user_id = peer.map(|m| m.user_id().to_string()).unwrap_or_default();
@@ -1870,7 +2146,9 @@ pub async fn call_answer(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
 
-    let room = client.inner().get_room(&parsed_room_id)
+    let room = client
+        .inner()
+        .get_room(&parsed_room_id)
         .ok_or_else(|| AppError::RoomNotFound(room_id.clone()))?;
 
     let answer_content = voip::CallAnswerContent {
@@ -1883,10 +2161,11 @@ pub async fn call_answer(
         version: 1,
     };
 
-    let event_json = serde_json::to_value(&answer_content)
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let event_json =
+        serde_json::to_value(&answer_content).map_err(|e| AppError::Internal(e.to_string()))?;
 
-    room.send_raw("m.call.answer", event_json).await
+    room.send_raw("m.call.answer", event_json)
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     // Update VoIP state to connecting
@@ -1913,7 +2192,9 @@ pub async fn call_hangup(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
 
-    let room = client.inner().get_room(&parsed_room_id)
+    let room = client
+        .inner()
+        .get_room(&parsed_room_id)
         .ok_or_else(|| AppError::RoomNotFound(room_id.clone()))?;
 
     let hangup_content = voip::CallHangupContent {
@@ -1923,10 +2204,11 @@ pub async fn call_hangup(
         reason: reason.clone(),
     };
 
-    let event_json = serde_json::to_value(&hangup_content)
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let event_json =
+        serde_json::to_value(&hangup_content).map_err(|e| AppError::Internal(e.to_string()))?;
 
-    room.send_raw("m.call.hangup", event_json).await
+    room.send_raw("m.call.hangup", event_json)
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     // End call in state
@@ -1956,7 +2238,9 @@ pub async fn call_candidates(
         .try_into()
         .map_err(|_| AppError::InvalidInput("Invalid room ID".into()))?;
 
-    let room = client.inner().get_room(&parsed_room_id)
+    let room = client
+        .inner()
+        .get_room(&parsed_room_id)
         .ok_or_else(|| AppError::RoomNotFound(room_id.clone()))?;
 
     let candidates_content = voip::CallCandidatesContent {
@@ -1966,10 +2250,11 @@ pub async fn call_candidates(
         version: 1,
     };
 
-    let event_json = serde_json::to_value(&candidates_content)
-        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let event_json =
+        serde_json::to_value(&candidates_content).map_err(|e| AppError::Internal(e.to_string()))?;
 
-    room.send_raw("m.call.candidates", event_json).await
+    room.send_raw("m.call.candidates", event_json)
+        .await
         .map_err(|e| AppError::Matrix(e.to_string()))?;
 
     Ok(())
@@ -1990,7 +2275,9 @@ pub async fn get_call_state(
         Ok(voip_state.get_call_for_room(&rid).cloned())
     } else {
         // Return any active non-ended call
-        let active = voip_state.active_calls.values()
+        let active = voip_state
+            .active_calls
+            .values()
             .find(|c| c.state != voip::CallState::Ended)
             .cloned();
         Ok(active)
@@ -2006,15 +2293,17 @@ pub async fn get_call_history(
     let voip_state = state.voip_state.lock().await;
     let history = voip_state.get_history();
     let limit = limit.unwrap_or(100).min(500) as usize;
-    let start = if history.len() > limit { history.len() - limit } else { 0 };
+    let start = if history.len() > limit {
+        history.len() - limit
+    } else {
+        0
+    };
     Ok(history[start..].to_vec())
 }
 
 /// Clear call history
 #[tauri::command]
-pub async fn clear_call_history(
-    state: State<'_, AppState>,
-) -> Result<(), AppError> {
+pub async fn clear_call_history(state: State<'_, AppState>) -> Result<(), AppError> {
     let mut voip_state = state.voip_state.lock().await;
     voip_state.call_history.clear();
     voip::save_history(&voip_state.call_history);
@@ -2023,9 +2312,7 @@ pub async fn clear_call_history(
 
 /// Get TURN server configuration from the homeserver
 #[tauri::command]
-pub async fn get_turn_servers(
-    state: State<'_, AppState>,
-) -> Result<serde_json::Value, AppError> {
+pub async fn get_turn_servers(state: State<'_, AppState>) -> Result<serde_json::Value, AppError> {
     let client_lock = state.matrix_client.lock().await;
     let client = client_lock.as_ref().ok_or(AppError::NotLoggedIn)?;
 
@@ -2043,7 +2330,10 @@ pub async fn get_turn_servers(
             }))
         }
         Err(e) => {
-            log::warn!("Failed to get TURN servers from homeserver: {}, using fallback STUN", e);
+            log::warn!(
+                "Failed to get TURN servers from homeserver: {}, using fallback STUN",
+                e
+            );
             // Fallback to public STUN servers
             Ok(serde_json::json!({
                 "username": null,
@@ -2172,13 +2462,19 @@ fn load_manifest_from_path(plugin_path: &str) -> Result<PluginManifestData, AppE
 
     // Validate required fields
     if manifest.id.is_empty() {
-        return Err(AppError::InvalidInput("Plugin manifest missing 'id'".into()));
+        return Err(AppError::InvalidInput(
+            "Plugin manifest missing 'id'".into(),
+        ));
     }
     if manifest.name.is_empty() {
-        return Err(AppError::InvalidInput("Plugin manifest missing 'name'".into()));
+        return Err(AppError::InvalidInput(
+            "Plugin manifest missing 'name'".into(),
+        ));
     }
     if manifest.entry.is_empty() {
-        return Err(AppError::InvalidInput("Plugin manifest missing 'entry'".into()));
+        return Err(AppError::InvalidInput(
+            "Plugin manifest missing 'entry'".into(),
+        ));
     }
 
     // Validate entry file exists
@@ -2195,9 +2491,7 @@ fn load_manifest_from_path(plugin_path: &str) -> Result<PluginManifestData, AppE
 
 /// Install a plugin from a directory path
 #[tauri::command]
-pub async fn install_plugin(
-    plugin_path: String,
-) -> Result<InstalledPluginInfo, AppError> {
+pub async fn install_plugin(plugin_path: String) -> Result<InstalledPluginInfo, AppError> {
     let manifest = load_manifest_from_path(&plugin_path)?;
 
     let mut registry = load_plugin_registry()?;
@@ -2244,7 +2538,10 @@ pub async fn install_plugin(
         .unwrap_or_default()
         .as_millis() as u64;
 
-    let default_config = manifest.default_config.clone().unwrap_or(serde_json::json!({}));
+    let default_config = manifest
+        .default_config
+        .clone()
+        .unwrap_or(serde_json::json!({}));
 
     let entry = PluginRegistryEntry {
         id: manifest.id.clone(),
@@ -2272,9 +2569,7 @@ pub async fn install_plugin(
 
 /// Remove an installed plugin
 #[tauri::command]
-pub async fn remove_plugin(
-    plugin_id: String,
-) -> Result<(), AppError> {
+pub async fn remove_plugin(plugin_id: String) -> Result<(), AppError> {
     let mut registry = load_plugin_registry()?;
 
     let idx = registry.plugins.iter().position(|p| p.id == plugin_id);
@@ -2334,10 +2629,7 @@ pub async fn list_plugins() -> Result<Vec<InstalledPluginInfo>, AppError> {
 
 /// Get a specific config value for a plugin
 #[tauri::command]
-pub async fn get_plugin_config(
-    plugin_id: String,
-    key: String,
-) -> Result<Option<String>, AppError> {
+pub async fn get_plugin_config(plugin_id: String, key: String) -> Result<Option<String>, AppError> {
     let registry = load_plugin_registry()?;
 
     let entry = registry.plugins.iter().find(|p| p.id == plugin_id);
@@ -2487,10 +2779,12 @@ pub async fn switch_account(
     }
 
     let token_key = format!("account_token_{}", &account.user_id);
-    let access_token = keychain::get_secret(&token_key)?
-        .ok_or_else(|| AppError::Auth(format!(
-            "No stored credentials for {}. Please log in again.", &account.user_id
-        )))?;
+    let access_token = keychain::get_secret(&token_key)?.ok_or_else(|| {
+        AppError::Auth(format!(
+            "No stored credentials for {}. Please log in again.",
+            &account.user_id
+        ))
+    })?;
 
     keychain::store_session(
         &account.user_id,
@@ -2504,7 +2798,9 @@ pub async fn switch_account(
         &access_token,
         &account.user_id,
         &account.device_id,
-    ).await.map_err(|e| {
+    )
+    .await
+    .map_err(|e| {
         log::error!("Failed to restore session for {}: {}", &account.user_id, e);
         AppError::Auth(format!("Failed to switch to {}: {}", &account.user_id, e))
     })?;
@@ -2521,8 +2817,6 @@ pub async fn switch_account(
 pub async fn list_accounts() -> Result<Vec<phase8::AccountInfo>, AppError> {
     phase8::list_accounts_impl()
 }
-
-
 
 /// Check data integrity
 #[tauri::command]

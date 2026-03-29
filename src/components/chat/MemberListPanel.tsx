@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useAuthStore } from '../../stores/auth';
+import { useModeration } from '../../hooks/useModeration';
+import { useModerationStore } from '../../stores/moderation';
+import ModerationDialog from '../moderation/ModerationDialog';
 import styles from './MemberListPanel.module.css';
 import modStyles from '../rooms/Moderation.module.css';
 
@@ -34,8 +38,10 @@ function getRoleLabel(powerLevel: number): string {
 }
 
 export default function MemberListPanel({ roomId }: MemberListPanelProps) {
+  const currentUserId = useAuthStore((state) => state.userId);
   const [members, setMembers] = useState<RoomMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false, x: 0, y: 0, member: null,
   });
@@ -44,10 +50,16 @@ export default function MemberListPanel({ roomId }: MemberListPanelProps) {
     userId: string;
   } | null>(null);
   const [reason, setReason] = useState('');
+  const [showIgnoreDialog, setShowIgnoreDialog] = useState<RoomMember | null>(null);
+  const [showUnignoreDialog, setShowUnignoreDialog] = useState<RoomMember | null>(null);
+  const [showReportDialog, setShowReportDialog] = useState<RoomMember | null>(null);
+  const ignoredUsers = useModerationStore((state) => state.ignoredUsers);
+  const { ignoreUser, unignoreUser, reportUser } = useModeration();
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setError(null);
     invoke<RoomMember[]>('get_room_members', { roomId })
       .then((result) => {
         if (!cancelled) {
@@ -57,7 +69,10 @@ export default function MemberListPanel({ roomId }: MemberListPanelProps) {
       })
       .catch((e) => {
         console.error('Failed to load members:', e);
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setError(String(e));
+          setLoading(false);
+        }
       });
     return () => { cancelled = true; };
   }, [roomId]);
@@ -121,6 +136,11 @@ export default function MemberListPanel({ roomId }: MemberListPanelProps) {
       <div className={styles.memberInfo}>
         <span className={styles.displayName}>
           {member.displayName || member.userId}
+          {ignoredUsers.includes(member.userId) && (
+            <span className={styles.ignoredBadge} title="Ignored user">
+              Ignored
+            </span>
+          )}
           {getRoleBadge(member.powerLevel) && (
             <span className={styles.roleBadge} title={`${getRoleLabel(member.powerLevel)} (${member.powerLevel})`}>
               {getRoleBadge(member.powerLevel)}
@@ -145,6 +165,8 @@ export default function MemberListPanel({ roomId }: MemberListPanelProps) {
       <div className={styles.memberList}>
         {loading ? (
           <div className={styles.loading}>Loading...</div>
+        ) : error ? (
+          <div className={styles.loading}>{error}</div>
         ) : (
           <>
             {admins.length > 0 && (
@@ -180,6 +202,25 @@ export default function MemberListPanel({ roomId }: MemberListPanelProps) {
             {contextMenu.member.displayName || contextMenu.member.userId}
           </div>
           <div className={modStyles.contextMenuSep} />
+          {contextMenu.member.userId !== currentUserId && (
+            <>
+              <button className={modStyles.contextMenuItem} onClick={() => {
+                if (ignoredUsers.includes(contextMenu.member!.userId)) {
+                  setShowUnignoreDialog(contextMenu.member);
+                } else {
+                  setShowIgnoreDialog(contextMenu.member);
+                }
+                closeContextMenu();
+              }}>
+                {ignoredUsers.includes(contextMenu.member.userId) ? '?? Unblock / Unignore' : '?? Block / Ignore'}
+              </button>
+              <button className={modStyles.contextMenuItem} onClick={() => {
+                setShowReportDialog(contextMenu.member);
+                closeContextMenu();
+              }}>?? Report User</button>
+              <div className={modStyles.contextMenuSep} />
+            </>
+          )}
           <button className={modStyles.contextMenuItem} onClick={() => {
             setReasonDialog({ action: 'kick', userId: contextMenu.member!.userId });
             closeContextMenu();
@@ -251,6 +292,38 @@ export default function MemberListPanel({ roomId }: MemberListPanelProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {showIgnoreDialog && (
+        <ModerationDialog
+          title="Block / Ignore User"
+          description={`Hide future messages and reactions from ${showIgnoreDialog.displayName || showIgnoreDialog.userId}?`}
+          confirmLabel="Block User"
+          onClose={() => setShowIgnoreDialog(null)}
+          onConfirm={async () => { await ignoreUser(showIgnoreDialog.userId); }}
+        />
+      )}
+
+      {showUnignoreDialog && (
+        <ModerationDialog
+          title="Unblock / Unignore User"
+          description={`Allow ${showUnignoreDialog.displayName || showUnignoreDialog.userId} to appear in chat again?`}
+          confirmLabel="Unblock User"
+          onClose={() => setShowUnignoreDialog(null)}
+          onConfirm={async () => { await unignoreUser(showUnignoreDialog.userId); }}
+        />
+      )}
+
+      {showReportDialog && (
+        <ModerationDialog
+          title="Report User"
+          description={`Send a moderation report for ${showReportDialog.displayName || showReportDialog.userId}.`}
+          confirmLabel="Report User"
+          onClose={() => setShowReportDialog(null)}
+          onConfirm={(reportReason) => reportUser(showReportDialog.userId, reportReason)}
+          reasonLabel="Reason"
+          reasonPlaceholder="Describe the abusive or suspicious behavior."
+        />
       )}
     </div>
   );
