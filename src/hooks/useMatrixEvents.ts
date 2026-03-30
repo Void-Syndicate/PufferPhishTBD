@@ -15,6 +15,7 @@ import { useSettingsStore } from "../stores/settings";
 import { useReadReceiptStore } from "../stores/readReceipts";
 import { soundEngine } from "../audio/SoundEngine";
 import { useEncryptionStore } from "../stores/encryption";
+import { useModerationStore } from "../stores/moderation";
 
 interface TimelineEvent {
   roomId: string;
@@ -65,6 +66,10 @@ interface RoomEncryptionChangedEvent {
   isEncrypted: boolean;
 }
 
+interface IgnoredUsersChangedEvent {
+  userIds: string[];
+}
+
 export function useMatrixEvents() {
   const addMessage = useMessagesStore((s) => s.addMessage);
   const addReaction = useMessagesStore((s) => s.addReaction);
@@ -80,17 +85,21 @@ export function useMatrixEvents() {
   const soundEnabled = useSettingsStore((s) => s.soundEnabled);
   const setReceipt = useReadReceiptStore((s) => s.setReceipt);
   const addPendingVerification = useEncryptionStore((s) => s.addPendingVerification);
+  const ignoredUsers = useModerationStore((s) => s.ignoredUsers);
+  const setIgnoredUsers = useModerationStore((s) => s.setIgnoredUsers);
 
   // Use refs for values that change frequently to avoid tearing down/re-creating all listeners
   const selectedRoomIdRef = useRef(selectedRoomId);
   const userIdRef = useRef(userId);
   const soundEnabledRef = useRef(soundEnabled);
   const getRoomNotificationRef = useRef(getRoomNotification);
+  const ignoredUsersRef = useRef(ignoredUsers);
 
   useEffect(() => { selectedRoomIdRef.current = selectedRoomId; }, [selectedRoomId]);
   useEffect(() => { userIdRef.current = userId; }, [userId]);
   useEffect(() => { soundEnabledRef.current = soundEnabled; }, [soundEnabled]);
   useEffect(() => { getRoomNotificationRef.current = getRoomNotification; }, [getRoomNotification]);
+  useEffect(() => { ignoredUsersRef.current = ignoredUsers; }, [ignoredUsers]);
 
   useEffect(() => {
     (async () => {
@@ -102,10 +111,20 @@ export function useMatrixEvents() {
   }, []);
 
   useEffect(() => {
+    invoke<string[]>("get_ignored_users")
+      .then(setIgnoredUsers)
+      .catch((error) => console.error("Failed to load ignored users:", error));
+  }, [setIgnoredUsers]);
+
+  useEffect(() => {
     const unlisteners: (() => void)[] = [];
 
     listen<TimelineEvent>("matrix://timeline", (event) => {
       const { roomId, message: msg } = event.payload;
+
+      if (ignoredUsersRef.current.includes(msg.sender)) {
+        return;
+      }
 
       if ((msg as any).replaces) {
         updateMessage(roomId, (msg as any).replaces, {
@@ -158,6 +177,9 @@ export function useMatrixEvents() {
 
     listen<ReactionSyncEvent>("matrix://reaction", (event) => {
       const { roomId, eventId, sender, emoji } = event.payload;
+      if (ignoredUsersRef.current.includes(sender)) {
+        return;
+      }
       addReaction(roomId, eventId, emoji, sender);
     }).then((u) => unlisteners.push(u));
 
@@ -178,6 +200,10 @@ export function useMatrixEvents() {
       } catch (e) {
         console.error("Failed to refresh rooms:", e);
       }
+    }).then((u) => unlisteners.push(u));
+
+    listen<IgnoredUsersChangedEvent>("matrix://ignored-users-changed", (event) => {
+      setIgnoredUsers(event.payload.userIds);
     }).then((u) => unlisteners.push(u));
 
     // Verification request received
@@ -216,5 +242,5 @@ export function useMatrixEvents() {
     return () => {
       unlisteners.forEach((u) => u());
     };
-  }, [addMessage, addReaction, updateMessage, removeMessage, setTyping, updateRoom, setRooms, setReceipt, addPendingVerification]);
+  }, [addMessage, addReaction, updateMessage, removeMessage, setTyping, updateRoom, setRooms, setReceipt, addPendingVerification, setIgnoredUsers]);
 }

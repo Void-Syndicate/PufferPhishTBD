@@ -47,6 +47,11 @@ The entire UI mimics AOL Instant Messenger / AOL 3.0-5.0 era. This is non-negoti
 - Full Matrix Client-Server API spec compliance
 - Element feature parity is the target (see PROJECT.md Tier 1-7)
 - matrix-rust-sdk is the sole Matrix interface — no custom protocol code
+- For Matrix protocol work, agents must verify current behavior against primary sources before implementing:
+  - Matrix spec (`spec.matrix.org`)
+  - matrix-rust-sdk docs and current SDK source
+  - Current Matrix Foundation docs/blog posts when auth, discovery, OIDC/MAS, or other evolving behavior is involved
+- If repo docs and current Matrix sources disagree, follow current Matrix sources and update the repo docs or comments to match
 
 ### 4. Plugin Architecture
 - Plugins are sandboxed (iframe + message passing)
@@ -186,3 +191,5 @@ See [PROJECT.md](./PROJECT.md) for detailed task breakdowns per phase.
 5. **Test on all 3 platforms** — Tauri renders differently on Windows/Mac/Linux.
 6. **The IPC boundary is the API contract** — keep Rust and TypeScript concerns separated.
 7. **No telemetry, no tracking, no external requests** outside the Matrix homeserver.
+8. **Research before Matrix changes** — for login, homeserver discovery, `.well-known`, SSO/OIDC/MAS, room relations, moderation, notifications, encryption, and other protocol-sensitive work, check the web for the current spec-compliant behavior before coding.
+9. **Prefer primary sources over memory** — do not rely on stale recollection for Matrix behavior if it can be verified from current spec/docs/source.

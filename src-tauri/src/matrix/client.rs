@@ -1,27 +1,38 @@
 use matrix_sdk::{
+    authentication::matrix::{MatrixSession, MatrixSessionTokens},
     config::SyncSettings,
-    room::Room,
+    room::{ReportedContentScore, Room},
     ruma::{
+        api::client::{
+            account::register,
+            receipt::create_receipt::v3::ReceiptType,
+            reporting::report_user,
+            room::report_room,
+            uiaa::{AuthData, AuthFlow, AuthType, Dummy, RegistrationToken},
+        },
         events::room::MediaSource,
-        api::client::receipt::create_receipt::v3::ReceiptType,
         events::{
+            ignored_user_list::{IgnoredUser, IgnoredUserListEventContent},
             reaction::ReactionEventContent,
             receipt::ReceiptThread,
             relation::Annotation,
             room::message::{
-                MessageType, OriginalSyncRoomMessageEvent,
-                Relation, RoomMessageEventContent,
+                MessageType, OriginalSyncRoomMessageEvent, Relation, RoomMessageEventContent,
             },
-            AnyMessageLikeEvent, AnyTimelineEvent, MessageLikeEvent,
+            AnyGlobalAccountDataEvent, AnyMessageLikeEvent, AnyTimelineEvent,
+            GlobalAccountDataEventType, MessageLikeEvent,
         },
         OwnedEventId, OwnedRoomId, OwnedUserId, RoomId, UInt,
     },
     Client, SessionMeta,
 };
-use tauri::Emitter;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tauri::Emitter;
+use tokio::sync::RwLock;
 use zeroize::Zeroize;
 
 use crate::error::AppError;
@@ -30,6 +41,7 @@ use crate::error::AppError;
 pub struct MatrixClient {
     client: Client,
     user_id: OwnedUserId,
+    ignored_users: Arc<RwLock<HashSet<String>>>,
 }
 
 #[derive(Serialize, Clone)]
@@ -73,7 +85,6 @@ pub struct MediaInfo {
     pub thumbnail_url: Option<String>,
     pub filename: Option<String>,
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -143,7 +154,6 @@ pub struct PresenceUpdate {
     pub last_active_ago: Option<u64>,
 }
 
-
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct RedactionSyncEvent {
@@ -178,6 +188,11 @@ pub struct RoomEncryptionChanged {
     pub is_encrypted: bool,
 }
 
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct IgnoredUsersChanged {
+    pub user_ids: Vec<String>,
+}
 
 /// Public room info returned from directory search
 #[derive(Serialize, Clone, Debug)]
@@ -237,35 +252,93 @@ fn validate_event_id(event_id: &str) -> Result<OwnedEventId, AppError> {
     Ok(parsed)
 }
 
+/// Validate user_id format
+fn validate_user_id(user_id: &str) -> Result<OwnedUserId, AppError> {
+    if user_id.is_empty() {
+        return Err(AppError::InvalidInput("User ID is required".into()));
+    }
+    let parsed: OwnedUserId = user_id
+        .try_into()
+        .map_err(|_| AppError::InvalidInput("Invalid user ID format".into()))?;
+    Ok(parsed)
+}
+
 impl MatrixClient {
-    /// Create a new Matrix client and log in with password
-    /// Create a new Matrix client and log in with password.
-    /// Uses a temporary in-memory client for auth, then builds the real
-    /// per-user store client with the actual user_id.
-    pub async fn login(
-        homeserver: &str,
-        username: &str,
-        mut password: String,
-    ) -> Result<(Self, LoginResult, String), AppError> {
-        // Step 1: Auth with a temporary client (no persistent store)
-        let temp_client = Client::builder()
-            .homeserver_url(homeserver)
-            .build()
+    async fn fetch_ignored_user_list_event_content(
+        client: &Client,
+    ) -> Result<IgnoredUserListEventContent, AppError> {
+        let raw_content = client
+            .account()
+            .fetch_account_data(GlobalAccountDataEventType::IgnoredUserList)
             .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
 
-        let response = temp_client
-            .matrix_auth()
-            .login_username(username, &password)
-            .initial_device_display_name("PufferChat")
+        let content = raw_content
+            .map(|raw| raw.deserialize_as::<IgnoredUserListEventContent>())
+            .transpose()
+            .map_err(|e| AppError::Matrix(e.to_string()))?
+            .unwrap_or_default();
+
+        Ok(content)
+    }
+
+    fn ignored_user_ids_from_content(content: &IgnoredUserListEventContent) -> HashSet<String> {
+        content
+            .ignored_users
+            .keys()
+            .map(|user_id| user_id.to_string())
+            .collect()
+    }
+
+    fn sorted_ignored_user_ids(content: &IgnoredUserListEventContent) -> Vec<String> {
+        let mut user_ids: Vec<String> = content
+            .ignored_users
+            .keys()
+            .map(|user_id| user_id.to_string())
+            .collect();
+        user_ids.sort();
+        user_ids
+    }
+
+    async fn build_with_loaded_moderation_state(client: Client, user_id: OwnedUserId) -> Self {
+        let ignored_users = match Self::fetch_ignored_user_list_event_content(&client).await {
+            Ok(content) => Self::ignored_user_ids_from_content(&content),
+            Err(error) => {
+                log::warn!(
+                    "Failed to load ignored users for moderation cache, continuing with empty list: {}",
+                    error
+                );
+                HashSet::new()
+            }
+        };
+
+        Self {
+            client,
+            user_id,
+            ignored_users: Arc::new(RwLock::new(ignored_users)),
+        }
+    }
+
+    async fn current_ignored_user_ids(&self) -> HashSet<String> {
+        self.ignored_users.read().await.clone()
+    }
+
+    async fn build_temp_client(homeserver: &str) -> Result<Client, AppError> {
+        Client::builder()
+            .homeserver_url(homeserver)
+            .build()
             .await
-            .map_err(|e| AppError::Auth(e.to_string()))?;
+            .map_err(|e| AppError::Matrix(e.to_string()))
+    }
 
-        password.zeroize();
-
-        let user_id = response.user_id.clone();
-        let access_token = response.access_token.clone();
-        let device_id = response.device_id.clone();
+    async fn finalize_logged_in_session(
+        homeserver: &str,
+        temp_client: Client,
+        session: MatrixSession,
+    ) -> Result<(Self, LoginResult, String), AppError> {
+        let user_id = session.meta.user_id.clone();
+        let device_id = session.meta.device_id.to_string();
+        let access_token = session.tokens.access_token.clone();
 
         let display_name = temp_client
             .account()
@@ -275,18 +348,22 @@ impl MatrixClient {
             .flatten()
             .map(|n| n.to_string());
 
-        // Step 2: Build the real client with per-user persistent store
         let uid_str = user_id.to_string();
         let client = match Self::build_persistent_client(homeserver, &uid_str).await {
             Ok(c) => c,
             Err(e) => {
-                // If store cipher fails, clear and retry with fresh store
                 let err_str = format!("{}", e);
-                if err_str.contains("cipher") || err_str.contains("Cipher")
-                    || err_str.contains("crypto") || err_str.contains("database")
+                if err_str.contains("cipher")
+                    || err_str.contains("Cipher")
+                    || err_str.contains("crypto")
+                    || err_str.contains("database")
                     || err_str.contains("SqliteStore")
                 {
-                    log::warn!("Store cipher error for {}, clearing and retrying: {}", uid_str, e);
+                    log::warn!(
+                        "Store cipher error for {}, clearing and retrying: {}",
+                        uid_str,
+                        e
+                    );
                     let _ = clear_crypto_store_for_user(Some(&uid_str));
                     let _ = clear_db_passphrase_for_user(Some(&uid_str));
                     Self::build_persistent_client(homeserver, &uid_str).await?
@@ -294,19 +371,6 @@ impl MatrixClient {
                     return Err(e);
                 }
             }
-        };
-
-        // Restore the session we just got into the persistent client
-        let parsed_device_id: matrix_sdk::ruma::OwnedDeviceId = device_id.as_str().into();
-        let session = matrix_sdk::authentication::matrix::MatrixSession {
-            meta: SessionMeta {
-                user_id: user_id.clone(),
-                device_id: parsed_device_id,
-            },
-            tokens: matrix_sdk::authentication::matrix::MatrixSessionTokens {
-                access_token: access_token.to_string(),
-                refresh_token: None,
-            },
         };
 
         client
@@ -318,12 +382,221 @@ impl MatrixClient {
         let result = LoginResult {
             user_id: uid_str,
             display_name,
-            device_id: device_id.to_string(),
+            device_id,
         };
 
-        let matrix_client = Self { client, user_id };
+        let matrix_client = Self::build_with_loaded_moderation_state(client, user_id).await;
 
-        Ok((matrix_client, result, access_token.to_string()))
+        Ok((matrix_client, result, access_token))
+    }
+
+    fn build_registration_request(
+        username: &str,
+        password: &str,
+        auth: Option<AuthData>,
+    ) -> register::v3::Request {
+        let mut request = register::v3::Request::new();
+        request.username = Some(username.to_owned());
+        request.password = Some(password.to_owned());
+        request.initial_device_display_name = Some("PufferChat".to_owned());
+        request.kind = register::RegistrationKind::User;
+        request.auth = auth;
+        request
+    }
+
+    fn registration_stage_label(stage: &AuthType) -> &'static str {
+        match stage {
+            AuthType::Dummy => "dummy confirmation",
+            AuthType::RegistrationToken => "registration token",
+            AuthType::Terms => "terms acceptance",
+            AuthType::ReCaptcha => "CAPTCHA",
+            AuthType::EmailIdentity => "email verification",
+            AuthType::Msisdn => "phone verification",
+            AuthType::Password => "password confirmation",
+            AuthType::Sso => "browser sign-in",
+            _ => "additional authentication",
+        }
+    }
+
+    fn flow_can_be_completed(flow: &AuthFlow, has_registration_token: bool) -> bool {
+        flow.stages.iter().all(|stage| match stage {
+            AuthType::Dummy => true,
+            AuthType::RegistrationToken => has_registration_token,
+            _ => false,
+        })
+    }
+
+    fn next_registration_auth_step(
+        info: &matrix_sdk::ruma::api::client::uiaa::UiaaInfo,
+        registration_token: Option<&str>,
+    ) -> Result<AuthData, AppError> {
+        if let Some(flow) = info
+            .flows
+            .iter()
+            .find(|flow| Self::flow_can_be_completed(flow, registration_token.is_some()))
+        {
+            if let Some(next_stage) = flow
+                .stages
+                .iter()
+                .find(|stage| !info.completed.contains(stage))
+            {
+                return match next_stage {
+                    AuthType::Dummy => {
+                        let mut auth = Dummy::new();
+                        auth.session = info.session.clone();
+                        Ok(AuthData::Dummy(auth))
+                    }
+                    AuthType::RegistrationToken => {
+                        let token = registration_token.ok_or_else(|| {
+                            AppError::Auth(
+                                "This homeserver requires a registration token to create accounts."
+                                    .into(),
+                            )
+                        })?;
+                        let mut auth = RegistrationToken::new(token.to_owned());
+                        auth.session = info.session.clone();
+                        Ok(AuthData::RegistrationToken(auth))
+                    }
+                    _ => unreachable!("unsupported stage already filtered out"),
+                };
+            }
+        }
+
+        if info.flows.iter().any(|flow| {
+            flow.stages
+                .iter()
+                .any(|stage| matches!(stage, AuthType::RegistrationToken))
+        }) && registration_token.is_none()
+        {
+            return Err(AppError::Auth(
+                "This homeserver requires a registration token to create accounts.".into(),
+            ));
+        }
+
+        if let Some(unsupported_stage) = info
+            .flows
+            .iter()
+            .flat_map(|flow| flow.stages.iter())
+            .find(|stage| !matches!(stage, AuthType::Dummy | AuthType::RegistrationToken))
+        {
+            return Err(AppError::Auth(format!(
+                "This homeserver requires {} for registration, which PufferChat does not support yet.",
+                Self::registration_stage_label(unsupported_stage)
+            )));
+        }
+
+        Err(AppError::Auth(
+            "The homeserver requested registration steps PufferChat could not complete.".into(),
+        ))
+    }
+
+    /// Create a new Matrix client and log in with password.
+    /// Uses a temporary in-memory client for auth, then builds the real
+    /// per-user store client with the actual user_id.
+    pub async fn login(
+        homeserver: &str,
+        username: &str,
+        mut password: String,
+    ) -> Result<(Self, LoginResult, String), AppError> {
+        let temp_client = Self::build_temp_client(homeserver).await?;
+
+        let response = temp_client
+            .matrix_auth()
+            .login_username(username, &password)
+            .initial_device_display_name("PufferChat")
+            .await
+            .map_err(|e| AppError::Auth(e.to_string()))?;
+
+        password.zeroize();
+
+        Self::finalize_logged_in_session(homeserver, temp_client, (&response).into()).await
+    }
+
+    pub async fn register(
+        homeserver: &str,
+        username: &str,
+        mut password: String,
+        registration_token: Option<String>,
+    ) -> Result<(Self, LoginResult, String), AppError> {
+        let temp_client = Self::build_temp_client(homeserver).await?;
+
+        let result = async {
+            let mut request = Self::build_registration_request(username, &password, None);
+
+            let response = loop {
+                match temp_client.matrix_auth().register(request).await {
+                    Ok(response) => break response,
+                    Err(err) => {
+                        if let Some(info) = err.as_uiaa_response() {
+                            let auth = Self::next_registration_auth_step(
+                                info,
+                                registration_token.as_deref(),
+                            )?;
+                            request =
+                                Self::build_registration_request(username, &password, Some(auth));
+                            continue;
+                        }
+
+                        return Err(AppError::Auth(format!("Failed to register: {}", err)));
+                    }
+                }
+            };
+
+            let access_token = response.access_token.clone().ok_or_else(|| {
+                AppError::Auth(
+                    "The homeserver created the account but did not return a login session.".into(),
+                )
+            })?;
+            let device_id = response.device_id.clone().ok_or_else(|| {
+                AppError::Auth(
+                    "The homeserver created the account but did not return a device ID.".into(),
+                )
+            })?;
+
+            let session = MatrixSession {
+                meta: SessionMeta {
+                    user_id: response.user_id.clone(),
+                    device_id,
+                },
+                tokens: MatrixSessionTokens {
+                    access_token,
+                    refresh_token: response.refresh_token.clone(),
+                },
+            };
+
+            Self::finalize_logged_in_session(homeserver, temp_client, session).await
+        }
+        .await;
+
+        password.zeroize();
+        result
+    }
+
+    pub async fn login_with_sso<F, Fut>(
+        homeserver: &str,
+        identity_provider_id: Option<&str>,
+        use_sso_login_url: F,
+    ) -> Result<(Self, LoginResult, String), AppError>
+    where
+        F: FnOnce(String) -> Fut + Send + 'static,
+        Fut: Future<Output = matrix_sdk::Result<()>> + Send + 'static,
+    {
+        let temp_client = Self::build_temp_client(homeserver).await?;
+        let mut login_builder = temp_client
+            .matrix_auth()
+            .login_sso(use_sso_login_url)
+            .initial_device_display_name("PufferChat")
+            .server_response("PufferChat sign-in is complete. You can close this page now.");
+
+        if let Some(idp_id) = identity_provider_id {
+            login_builder = login_builder.identity_provider_id(idp_id);
+        }
+
+        let response = login_builder
+            .await
+            .map_err(|e| AppError::Auth(format!("Browser sign-in failed: {}", e)))?;
+
+        Self::finalize_logged_in_session(homeserver, temp_client, (&response).into()).await
     }
 
     /// Build a persistent client with per-user store directory
@@ -356,8 +629,10 @@ impl MatrixClient {
             }
             Err(e) => {
                 let err_str = format!("{}", e);
-                if err_str.contains("cipher") || err_str.contains("Cipher")
-                    || err_str.contains("crypto") || err_str.contains("database")
+                if err_str.contains("cipher")
+                    || err_str.contains("Cipher")
+                    || err_str.contains("crypto")
+                    || err_str.contains("database")
                     || err_str.contains("SqliteStore")
                 {
                     log::warn!("[restore] Store cipher error, clearing and retrying: {}", e);
@@ -396,7 +671,7 @@ impl MatrixClient {
         log::info!("[restore] Session restored successfully");
         let user_id = client.user_id().ok_or(AppError::NotLoggedIn)?.to_owned();
 
-        Ok(Self { client, user_id })
+        Ok(Self::build_with_loaded_moderation_state(client, user_id).await)
     }
 
     /// Get inner client reference
@@ -409,28 +684,32 @@ impl MatrixClient {
         &self,
         app_handle: tauri::AppHandle,
     ) -> Result<(), AppError> {
-        let settings = SyncSettings::default()
-            .timeout(std::time::Duration::from_secs(30));
+        let settings = SyncSettings::default().timeout(std::time::Duration::from_secs(30));
         let client = self.client.clone();
 
         // Timeline message handler
         let handle_clone = app_handle.clone();
-        client.add_event_handler(
-            move |event: OriginalSyncRoomMessageEvent, room: Room| {
-                let handle = handle_clone.clone();
-                async move {
-                    let room_id = room.room_id().to_string();
-                    let msg = timeline_message_from_sync_event(&event);
-                    let payload = TimelineEvent {
-                        room_id,
-                        message: msg,
-                    };
-                    if let Err(e) = handle.emit("matrix://timeline", &payload) {
-                        log::error!("Failed to emit timeline event: {}", e);
-                    }
+        let ignored_users = self.ignored_users.clone();
+        client.add_event_handler(move |event: OriginalSyncRoomMessageEvent, room: Room| {
+            let handle = handle_clone.clone();
+            let ignored_users = ignored_users.clone();
+            async move {
+                let sender = event.sender.to_string();
+                if ignored_users.read().await.contains(&sender) {
+                    return;
                 }
-            },
-        );
+
+                let room_id = room.room_id().to_string();
+                let msg = timeline_message_from_sync_event(&event);
+                let payload = TimelineEvent {
+                    room_id,
+                    message: msg,
+                };
+                if let Err(e) = handle.emit("matrix://timeline", &payload) {
+                    log::error!("Failed to emit timeline event: {}", e);
+                }
+            }
+        });
 
         // Typing indicators
         let handle_clone = app_handle.clone();
@@ -439,8 +718,12 @@ impl MatrixClient {
                 let handle = handle_clone.clone();
                 async move {
                     let room_id = room.room_id().to_string();
-                    let user_ids: Vec<String> =
-                        event.content.user_ids.iter().map(|u| u.to_string()).collect();
+                    let user_ids: Vec<String> = event
+                        .content
+                        .user_ids
+                        .iter()
+                        .map(|u| u.to_string())
+                        .collect();
                     let payload = TypingEvent { room_id, user_ids };
                     if let Err(e) = handle.emit("matrix://typing", &payload) {
                         log::error!("Failed to emit typing event: {}", e);
@@ -457,8 +740,8 @@ impl MatrixClient {
                 async move {
                     let room_id = room.room_id().to_string();
                     for (event_id, receipts) in &event.content.0 {
-                        if let Some(read_receipts) = receipts
-                            .get(&matrix_sdk::ruma::events::receipt::ReceiptType::Read)
+                        if let Some(read_receipts) =
+                            receipts.get(&matrix_sdk::ruma::events::receipt::ReceiptType::Read)
                         {
                             for (user_id, _receipt) in read_receipts {
                                 let payload = ReadReceiptEvent {
@@ -476,19 +759,28 @@ impl MatrixClient {
             },
         );
 
-// Reaction event handler
+        // Reaction event handler
         let handle_clone = app_handle.clone();
+        let ignored_users = self.ignored_users.clone();
         client.add_event_handler(
             move |event: matrix_sdk::ruma::events::reaction::SyncReactionEvent, room: Room| {
                 let handle = handle_clone.clone();
+                let ignored_users = ignored_users.clone();
                 async move {
-                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) = event {
+                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) =
+                        event
+                    {
+                        let sender = original.sender.to_string();
+                        if ignored_users.read().await.contains(&sender) {
+                            return;
+                        }
+
                         let annotation = &original.content.relates_to;
                         let payload = ReactionSyncEvent {
                             room_id: room.room_id().to_string(),
                             event_id: annotation.event_id.to_string(),
                             reaction_event_id: original.event_id.to_string(),
-                            sender: original.sender.to_string(),
+                            sender,
                             emoji: annotation.key.clone(),
                         };
                         if let Err(e) = handle.emit("matrix://reaction", &payload) {
@@ -498,6 +790,33 @@ impl MatrixClient {
                 }
             },
         );
+
+        // Global account data handler for moderation state such as ignored users.
+        let handle_clone = app_handle.clone();
+        let ignored_users = self.ignored_users.clone();
+        client.add_event_handler(move |event: AnyGlobalAccountDataEvent| {
+            let handle = handle_clone.clone();
+            let ignored_users = ignored_users.clone();
+            async move {
+                if let AnyGlobalAccountDataEvent::IgnoredUserList(event) = event {
+                    let mut user_ids: Vec<String> = event
+                        .content
+                        .ignored_users
+                        .keys()
+                        .map(|user_id| user_id.to_string())
+                        .collect();
+                    user_ids.sort();
+
+                    let mut ignored_users_guard = ignored_users.write().await;
+                    *ignored_users_guard = user_ids.iter().cloned().collect();
+
+                    let payload = IgnoredUsersChanged { user_ids };
+                    if let Err(error) = handle.emit("matrix://ignored-users-changed", &payload) {
+                        log::error!("Failed to emit ignored users update: {}", error);
+                    }
+                }
+            }
+        });
 
         // Redaction event handler
         let handle_clone = app_handle.clone();
@@ -552,7 +871,7 @@ impl MatrixClient {
                 }
             },
         );
-// Verification request handler (to-device)
+        // Verification request handler (to-device)
         let handle_clone = app_handle.clone();
         client.add_event_handler(
             move |event: matrix_sdk::ruma::events::key::verification::request::ToDeviceKeyVerificationRequestEvent| {
@@ -597,7 +916,8 @@ impl MatrixClient {
         // Room encryption state change handler
         let handle_clone = app_handle.clone();
         client.add_event_handler(
-            move |_event: matrix_sdk::ruma::events::room::encryption::SyncRoomEncryptionEvent, room: Room| {
+            move |_event: matrix_sdk::ruma::events::room::encryption::SyncRoomEncryptionEvent,
+                  room: Room| {
                 let handle = handle_clone.clone();
                 async move {
                     let payload = RoomEncryptionChanged {
@@ -615,10 +935,13 @@ impl MatrixClient {
         // m.call.invite handler
         let handle_clone = app_handle.clone();
         client.add_event_handler(
-            move |event: matrix_sdk::ruma::events::call::invite::SyncCallInviteEvent, room: Room| {
+            move |event: matrix_sdk::ruma::events::call::invite::SyncCallInviteEvent,
+                  room: Room| {
                 let handle = handle_clone.clone();
                 async move {
-                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) = event {
+                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) =
+                        event
+                    {
                         let sdp = original.content.offer.sdp.clone();
                         let is_video = sdp.contains("m=video");
                         let payload = crate::matrix::voip::CallInviteEvent {
@@ -629,7 +952,12 @@ impl MatrixClient {
                             sdp,
                             is_video,
                             lifetime_ms: u64::from(original.content.lifetime),
-                            party_id: original.content.party_id.as_ref().map(|p| p.to_string()).unwrap_or_default(),
+                            party_id: original
+                                .content
+                                .party_id
+                                .as_ref()
+                                .map(|p| p.to_string())
+                                .unwrap_or_default(),
                         };
                         if let Err(e) = handle.emit("matrix://call-invite", &payload) {
                             log::error!("Failed to emit call invite event: {}", e);
@@ -642,16 +970,24 @@ impl MatrixClient {
         // m.call.answer handler
         let handle_clone = app_handle.clone();
         client.add_event_handler(
-            move |event: matrix_sdk::ruma::events::call::answer::SyncCallAnswerEvent, room: Room| {
+            move |event: matrix_sdk::ruma::events::call::answer::SyncCallAnswerEvent,
+                  room: Room| {
                 let handle = handle_clone.clone();
                 async move {
-                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) = event {
+                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) =
+                        event
+                    {
                         let payload = crate::matrix::voip::CallAnswerEvent {
                             room_id: room.room_id().to_string(),
                             call_id: original.content.call_id.to_string(),
                             sender: original.sender.to_string(),
                             sdp: original.content.answer.sdp.clone(),
-                            party_id: original.content.party_id.as_ref().map(|p| p.to_string()).unwrap_or_default(),
+                            party_id: original
+                                .content
+                                .party_id
+                                .as_ref()
+                                .map(|p| p.to_string())
+                                .unwrap_or_default(),
                         };
                         if let Err(e) = handle.emit("matrix://call-answer", &payload) {
                             log::error!("Failed to emit call answer event: {}", e);
@@ -664,17 +1000,23 @@ impl MatrixClient {
         // m.call.candidates handler
         let handle_clone = app_handle.clone();
         client.add_event_handler(
-            move |event: matrix_sdk::ruma::events::call::candidates::SyncCallCandidatesEvent, room: Room| {
+            move |event: matrix_sdk::ruma::events::call::candidates::SyncCallCandidatesEvent,
+                  room: Room| {
                 let handle = handle_clone.clone();
                 async move {
-                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) = event {
-                        let candidates: Vec<crate::matrix::voip::IceCandidate> = original.content.candidates.iter().map(|c| {
-                            crate::matrix::voip::IceCandidate {
+                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) =
+                        event
+                    {
+                        let candidates: Vec<crate::matrix::voip::IceCandidate> = original
+                            .content
+                            .candidates
+                            .iter()
+                            .map(|c| crate::matrix::voip::IceCandidate {
                                 candidate: c.candidate.clone(),
                                 sdp_mid: c.sdp_mid.clone(),
                                 sdp_m_line_index: c.sdp_m_line_index.map(|v| u64::from(v) as u32),
-                            }
-                        }).collect();
+                            })
+                            .collect();
                         let payload = crate::matrix::voip::CallCandidatesEvent {
                             room_id: room.room_id().to_string(),
                             call_id: original.content.call_id.to_string(),
@@ -692,10 +1034,13 @@ impl MatrixClient {
         // m.call.hangup handler
         let handle_clone = app_handle.clone();
         client.add_event_handler(
-            move |event: matrix_sdk::ruma::events::call::hangup::SyncCallHangupEvent, room: Room| {
+            move |event: matrix_sdk::ruma::events::call::hangup::SyncCallHangupEvent,
+                  room: Room| {
                 let handle = handle_clone.clone();
                 async move {
-                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) = event {
+                    if let matrix_sdk::ruma::events::SyncMessageLikeEvent::Original(original) =
+                        event
+                    {
                         let reason = Some(format!("{:?}", original.content.reason));
                         let payload = crate::matrix::voip::CallHangupEvent {
                             room_id: room.room_id().to_string(),
@@ -721,14 +1066,12 @@ impl MatrixClient {
             },
         );
         let app_handle_sync2 = app_handle.clone();
-        client.add_event_handler(
-            move |_event: OriginalSyncRoomMessageEvent| {
-                let handle = app_handle_sync2.clone();
-                async move {
-                    let _ = handle.emit("matrix://rooms-changed", ());
-                }
-            },
-        );
+        client.add_event_handler(move |_event: OriginalSyncRoomMessageEvent| {
+            let handle = app_handle_sync2.clone();
+            async move {
+                let _ = handle.emit("matrix://rooms-changed", ());
+            }
+        });
         // Use streaming sync - handles since tokens automatically
         tokio::spawn(async move {
             if let Err(e) = client.sync(settings).await {
@@ -741,8 +1084,7 @@ impl MatrixClient {
 
     /// Start the sync loop (legacy, no events)
     pub async fn start_sync(&self) -> Result<(), AppError> {
-        let settings = SyncSettings::default()
-            .timeout(std::time::Duration::from_secs(30));
+        let settings = SyncSettings::default().timeout(std::time::Duration::from_secs(30));
         let client = self.client.clone();
         tokio::spawn(async move {
             if let Err(e) = client.sync(settings).await {
@@ -767,7 +1109,8 @@ impl MatrixClient {
             let member_count = room.joined_members_count();
 
             // Skip per-room HTTP fetch for last message - populated via sync events
-            let (last_message, last_message_timestamp): (Option<String>, Option<i64>) = (None, None);
+            let (last_message, last_message_timestamp): (Option<String>, Option<i64>) =
+                (None, None);
 
             let avatar_url = room.avatar_url().map(|u| u.to_string());
 
@@ -797,7 +1140,6 @@ impl MatrixClient {
 
         Ok(summaries)
     }
-    
 
     /// Get the joined room or return an error
     fn get_joined_room(&self, room_id: &RoomId) -> Result<Room, AppError> {
@@ -831,6 +1173,7 @@ impl MatrixClient {
             .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
 
+        let ignored_users = self.current_ignored_user_ids().await;
         let mut messages = Vec::new();
         let mut reaction_map: HashMap<String, Vec<(String, String)>> = HashMap::new(); // target_event_id -> [(emoji, sender)]
 
@@ -843,6 +1186,9 @@ impl MatrixClient {
                         let target = reaction.content.relates_to.event_id.to_string();
                         let emoji = reaction.content.relates_to.key.clone();
                         let sender = reaction.sender.to_string();
+                        if ignored_users.contains(&sender) {
+                            continue;
+                        }
                         reaction_map
                             .entry(target)
                             .or_default()
@@ -850,6 +1196,9 @@ impl MatrixClient {
                     }
                     _ => {
                         if let Some(msg) = timeline_message_from_any_event(&event) {
+                            if ignored_users.contains(&msg.sender) {
+                                continue;
+                            }
                             messages.push(msg);
                         }
                     }
@@ -873,7 +1222,6 @@ impl MatrixClient {
 
         messages.reverse();
 
-
         let has_more = response.end.is_some();
         Ok(PaginationResult {
             messages,
@@ -885,7 +1233,9 @@ impl MatrixClient {
     /// Send a text message to a room
     pub async fn send_message(&self, room_id: &str, body: &str) -> Result<String, AppError> {
         if body.is_empty() {
-            return Err(AppError::InvalidInput("Message body cannot be empty".into()));
+            return Err(AppError::InvalidInput(
+                "Message body cannot be empty".into(),
+            ));
         }
         if body.len() > 65536 {
             return Err(AppError::InvalidInput("Message body too long".into()));
@@ -927,14 +1277,13 @@ impl MatrixClient {
             .map_err(|e| AppError::Matrix(e.to_string()))?;
 
         // Use the SDK's reply builder
-        let content = RoomMessageEventContent::text_plain(body)
-            .make_reply_to_raw(
-                &original_event.into_raw(),
-                reply_to_id,
-                &room_id,
-                matrix_sdk::ruma::events::room::message::ForwardThread::Yes,
-                matrix_sdk::ruma::events::room::message::AddMentions::Yes,
-            );
+        let content = RoomMessageEventContent::text_plain(body).make_reply_to_raw(
+            &original_event.into_raw(),
+            reply_to_id,
+            &room_id,
+            matrix_sdk::ruma::events::room::message::ForwardThread::Yes,
+            matrix_sdk::ruma::events::room::message::AddMentions::Yes,
+        );
 
         let response = room
             .send(content)
@@ -952,7 +1301,9 @@ impl MatrixClient {
         new_body: &str,
     ) -> Result<String, AppError> {
         if new_body.is_empty() {
-            return Err(AppError::InvalidInput("New message body cannot be empty".into()));
+            return Err(AppError::InvalidInput(
+                "New message body cannot be empty".into(),
+            ));
         }
         if new_body.len() > 65536 {
             return Err(AppError::InvalidInput("Message body too long".into()));
@@ -1096,17 +1447,152 @@ impl MatrixClient {
         Ok(result)
     }
 
-    /// Search messages across rooms or in a specific room
-    pub async fn search_messages(&self, room_id: Option<&str>, query: &str, limit: u32) -> Result<Vec<TimelineMessage>, AppError> {
-        if query.is_empty() {
-            return Err(AppError::InvalidInput("Search query cannot be empty".into()));
+    /// Get the current ignored users list.
+    pub async fn get_ignored_users(&self) -> Result<Vec<String>, AppError> {
+        let content = Self::fetch_ignored_user_list_event_content(&self.client).await?;
+        let ignored_user_ids = Self::sorted_ignored_user_ids(&content);
+
+        let mut ignored_users = self.ignored_users.write().await;
+        *ignored_users = ignored_user_ids.iter().cloned().collect();
+
+        Ok(ignored_user_ids)
+    }
+
+    /// Add a user to the Matrix ignore list.
+    pub async fn ignore_user(&self, user_id: &str) -> Result<Vec<String>, AppError> {
+        let user_id = validate_user_id(user_id)?;
+        if user_id == self.user_id {
+            return Err(AppError::InvalidInput(
+                "You cannot ignore your own account.".into(),
+            ));
         }
-        
+
+        let mut content = Self::fetch_ignored_user_list_event_content(&self.client).await?;
+        content
+            .ignored_users
+            .insert(user_id, IgnoredUser::new());
+
+        self.client
+            .account()
+            .set_account_data(content.clone())
+            .await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+        let ignored_user_ids = Self::sorted_ignored_user_ids(&content);
+        let mut ignored_users = self.ignored_users.write().await;
+        *ignored_users = Self::ignored_user_ids_from_content(&content);
+
+        Ok(ignored_user_ids)
+    }
+
+    /// Remove a user from the Matrix ignore list.
+    pub async fn unignore_user(&self, user_id: &str) -> Result<Vec<String>, AppError> {
+        let user_id = validate_user_id(user_id)?;
+
+        let mut content = Self::fetch_ignored_user_list_event_content(&self.client).await?;
+        content.ignored_users.remove(&user_id);
+
+        self.client
+            .account()
+            .set_account_data(content.clone())
+            .await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+        let ignored_user_ids = Self::sorted_ignored_user_ids(&content);
+        let mut ignored_users = self.ignored_users.write().await;
+        *ignored_users = Self::ignored_user_ids_from_content(&content);
+
+        Ok(ignored_user_ids)
+    }
+
+    /// Report a room to the homeserver.
+    pub async fn report_room(&self, room_id: &str, reason: Option<&str>) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let mut request = report_room::v3::Request::new(room_id);
+        request.reason = reason
+            .map(str::trim)
+            .filter(|reason| !reason.is_empty())
+            .map(str::to_owned);
+
+        self.client
+            .send(request)
+            .await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Report a specific event in a room to the homeserver.
+    pub async fn report_message(
+        &self,
+        room_id: &str,
+        event_id: &str,
+        reason: Option<&str>,
+        score: Option<i32>,
+    ) -> Result<(), AppError> {
+        let room_id = validate_room_id(room_id)?;
+        let event_id = validate_event_id(event_id)?;
+        let room = self.get_joined_room(&room_id)?;
+        let score = match score {
+            Some(score) => Some(ReportedContentScore::try_from(score).map_err(|_| {
+                AppError::InvalidInput("Report score must be between -100 and 0.".into())
+            })?),
+            None => None,
+        };
+
+        room.report_content(
+            event_id,
+            score,
+            reason
+                .map(str::trim)
+                .filter(|reason| !reason.is_empty())
+                .map(str::to_owned),
+        )
+        .await
+        .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Report a user to the homeserver.
+    pub async fn report_user(&self, user_id: &str, reason: Option<&str>) -> Result<(), AppError> {
+        let user_id = validate_user_id(user_id)?;
+        let request = report_user::v3::Request::new(
+            user_id,
+            reason
+                .map(str::trim)
+                .filter(|reason| !reason.is_empty())
+                .unwrap_or_default()
+                .to_owned(),
+        );
+
+        self.client
+            .send(request)
+            .await
+            .map_err(|e| AppError::Matrix(e.to_string()))?;
+
+        Ok(())
+    }
+
+    /// Search messages across rooms or in a specific room
+    pub async fn search_messages(
+        &self,
+        room_id: Option<&str>,
+        query: &str,
+        limit: u32,
+    ) -> Result<Vec<TimelineMessage>, AppError> {
+        if query.is_empty() {
+            return Err(AppError::InvalidInput(
+                "Search query cannot be empty".into(),
+            ));
+        }
+
         let query_lower = query.to_lowercase();
-        
+
         if let Some(rid) = room_id {
             let result = self.get_room_messages(rid, None, 200).await?;
-            let filtered: Vec<TimelineMessage> = result.messages
+            let filtered: Vec<TimelineMessage> = result
+                .messages
                 .into_iter()
                 .filter(|m| m.body.to_lowercase().contains(&query_lower))
                 .take(limit as usize)
@@ -1116,7 +1602,10 @@ impl MatrixClient {
             let rooms = self.client.joined_rooms();
             let mut results = Vec::new();
             for room in rooms {
-                if let Ok(room_msgs) = self.get_room_messages(&room.room_id().to_string(), None, 100).await {
+                if let Ok(room_msgs) = self
+                    .get_room_messages(&room.room_id().to_string(), None, 100)
+                    .await
+                {
                     for msg in room_msgs.messages {
                         if msg.body.to_lowercase().contains(&query_lower) {
                             results.push(msg);
@@ -1133,7 +1622,6 @@ impl MatrixClient {
             Ok(results)
         }
     }
-
 
     /// Create a new room
     pub async fn create_room(
@@ -1199,7 +1687,9 @@ impl MatrixClient {
     /// Join a room by ID or alias
     pub async fn join_room(&self, room_id_or_alias: &str) -> Result<String, AppError> {
         if room_id_or_alias.is_empty() {
-            return Err(AppError::InvalidInput("Room ID or alias is required".into()));
+            return Err(AppError::InvalidInput(
+                "Room ID or alias is required".into(),
+            ));
         }
 
         use matrix_sdk::ruma::OwnedRoomOrAliasId;
@@ -1363,7 +1853,12 @@ impl MatrixClient {
         Ok(())
     }
     /// Resolve an mxc:// URL to an HTTP thumbnail URL
-    pub fn resolve_mxc_url(&self, mxc_url: &str, width: u32, height: u32) -> Result<String, AppError> {
+    pub fn resolve_mxc_url(
+        &self,
+        mxc_url: &str,
+        width: u32,
+        height: u32,
+    ) -> Result<String, AppError> {
         // mxc://server_name/media_id -> /_matrix/media/v3/thumbnail/server_name/media_id
         if !mxc_url.starts_with("mxc://") {
             return Err(AppError::InvalidInput("Not an mxc:// URL".into()));
@@ -1383,8 +1878,12 @@ impl MatrixClient {
             .try_into()
             .map_err(|_| AppError::InvalidInput("Invalid user ID".into()))?;
 
-        let request = matrix_sdk::ruma::api::client::profile::get_profile::v3::Request::new(parsed_user_id);
-        let response = self.client.send(request).await
+        let request =
+            matrix_sdk::ruma::api::client::profile::get_profile::v3::Request::new(parsed_user_id);
+        let response = self
+            .client
+            .send(request)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
 
         match response.avatar_url {
@@ -1395,7 +1894,6 @@ impl MatrixClient {
             None => Ok(None),
         }
     }
-
 
     pub fn user_id(&self) -> &OwnedUserId {
         &self.user_id
@@ -1411,7 +1909,8 @@ impl MatrixClient {
         let room = self.get_joined_room(&room_id)?;
         use matrix_sdk::ruma::events::room::name::RoomNameEventContent;
         let content = RoomNameEventContent::new(name.to_string());
-        room.send_state_event(content).await
+        room.send_state_event(content)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(())
     }
@@ -1422,7 +1921,8 @@ impl MatrixClient {
         let room = self.get_joined_room(&room_id)?;
         use matrix_sdk::ruma::events::room::topic::RoomTopicEventContent;
         let content = RoomTopicEventContent::new(topic.to_string());
-        room.send_state_event(content).await
+        room.send_state_event(content)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(())
     }
@@ -1435,7 +1935,8 @@ impl MatrixClient {
         let mime_type = mime_guess::from_path(file_path)
             .first_or_octet_stream()
             .to_string();
-        let mxc_url = crate::matrix::media::upload_media(&self.client, file_path, &mime_type).await?;
+        let mxc_url =
+            crate::matrix::media::upload_media(&self.client, file_path, &mime_type).await?;
         let mxc_uri: matrix_sdk::ruma::OwnedMxcUri = mxc_url
             .as_str()
             .try_into()
@@ -1444,7 +1945,8 @@ impl MatrixClient {
         use matrix_sdk::ruma::events::room::avatar::RoomAvatarEventContent;
         let mut content = RoomAvatarEventContent::new();
         content.url = Some(mxc_uri);
-        room.send_state_event(content).await
+        room.send_state_event(content)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(())
     }
@@ -1469,11 +1971,11 @@ impl MatrixClient {
         let alias_id: matrix_sdk::ruma::OwnedRoomAliasId = alias
             .try_into()
             .map_err(|_| AppError::InvalidInput("Invalid room alias format".into()))?;
-        let request = matrix_sdk::ruma::api::client::alias::create_alias::v3::Request::new(
-            alias_id,
-            room_id,
-        );
-        self.client.send(request).await
+        let request =
+            matrix_sdk::ruma::api::client::alias::create_alias::v3::Request::new(alias_id, room_id);
+        self.client
+            .send(request)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(())
     }
@@ -1483,10 +1985,11 @@ impl MatrixClient {
         let alias_id: matrix_sdk::ruma::OwnedRoomAliasId = alias
             .try_into()
             .map_err(|_| AppError::InvalidInput("Invalid room alias format".into()))?;
-        let request = matrix_sdk::ruma::api::client::alias::delete_alias::v3::Request::new(
-            alias_id,
-        );
-        self.client.send(request).await
+        let request =
+            matrix_sdk::ruma::api::client::alias::delete_alias::v3::Request::new(alias_id);
+        self.client
+            .send(request)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(())
     }
@@ -1501,7 +2004,8 @@ impl MatrixClient {
         use matrix_sdk::ruma::events::room::canonical_alias::RoomCanonicalAliasEventContent;
         let mut content = RoomCanonicalAliasEventContent::new();
         content.alias = Some(alias_id);
-        room.send_state_event(content).await
+        room.send_state_event(content)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(())
     }
@@ -1515,18 +2019,28 @@ impl MatrixClient {
         let room_id = validate_room_id(room_id)?;
         let room = self.get_joined_room(&room_id)?;
         use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
-        let pl_event = room.get_state_event_static::<RoomPowerLevelsEventContent>().await
+        let pl_event = room
+            .get_state_event_static::<RoomPowerLevelsEventContent>()
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         if let Some(raw) = pl_event {
-            let event = raw.deserialize().map_err(|e| AppError::Matrix(e.to_string()))?;
+            let event = raw
+                .deserialize()
+                .map_err(|e| AppError::Matrix(e.to_string()))?;
             use matrix_sdk::deserialized_responses::SyncOrStrippedState;
             let content = match event {
                 SyncOrStrippedState::Sync(ref s) => s.as_original().map(|o| o.content.clone()),
                 SyncOrStrippedState::Stripped(ref s) => Some(s.content.clone()),
             };
             if let Some(c) = content {
-                let user_levels: HashMap<String, i64> = c.users.iter()
-                    .map(|(uid, pl): (&matrix_sdk::ruma::OwnedUserId, &matrix_sdk::ruma::Int)| (uid.to_string(), i64::from(*pl)))
+                let user_levels: HashMap<String, i64> = c
+                    .users
+                    .iter()
+                    .map(
+                        |(uid, pl): (&matrix_sdk::ruma::OwnedUserId, &matrix_sdk::ruma::Int)| {
+                            (uid.to_string(), i64::from(*pl))
+                        },
+                    )
                     .collect();
                 return Ok(PowerLevelInfo {
                     users_default: i64::from(c.users_default),
@@ -1541,56 +2055,91 @@ impl MatrixClient {
             }
         }
         Ok(PowerLevelInfo {
-            users_default: 0, events_default: 0, state_default: 50,
-            ban: 50, kick: 50, invite: 0, redact: 50,
+            users_default: 0,
+            events_default: 0,
+            state_default: 50,
+            ban: 50,
+            kick: 50,
+            invite: 0,
+            redact: 50,
             user_levels: HashMap::new(),
         })
     }
 
     /// Set a user's power level
-    pub async fn set_user_power_level(&self, room_id: &str, user_id: &str, level: i64) -> Result<(), AppError> {
+    pub async fn set_user_power_level(
+        &self,
+        room_id: &str,
+        user_id: &str,
+        level: i64,
+    ) -> Result<(), AppError> {
         let room_id = validate_room_id(room_id)?;
         let room = self.get_joined_room(&room_id)?;
-        let uid: OwnedUserId = user_id.try_into()
+        let uid: OwnedUserId = user_id
+            .try_into()
             .map_err(|_| AppError::InvalidInput("Invalid user ID".into()))?;
         use matrix_sdk::ruma::events::room::power_levels::RoomPowerLevelsEventContent;
-        let pl_event = room.get_state_event_static::<RoomPowerLevelsEventContent>().await
+        let pl_event = room
+            .get_state_event_static::<RoomPowerLevelsEventContent>()
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         let mut content = if let Some(raw) = pl_event {
-            let event = raw.deserialize().map_err(|e| AppError::Matrix(e.to_string()))?;
+            let event = raw
+                .deserialize()
+                .map_err(|e| AppError::Matrix(e.to_string()))?;
             use matrix_sdk::deserialized_responses::SyncOrStrippedState;
             match event {
-                SyncOrStrippedState::Sync(ref s) => s.as_original().map(|o| o.content.clone()).unwrap_or_default(),
+                SyncOrStrippedState::Sync(ref s) => s
+                    .as_original()
+                    .map(|o| o.content.clone())
+                    .unwrap_or_default(),
                 SyncOrStrippedState::Stripped(ref s) => s.content.clone(),
             }
         } else {
             RoomPowerLevelsEventContent::default()
         };
         use matrix_sdk::ruma::Int;
-        content.users.insert(uid, Int::new(level).unwrap_or(Int::MIN));
-        room.send_state_event(content).await
+        content
+            .users
+            .insert(uid, Int::new(level).unwrap_or(Int::MIN));
+        room.send_state_event(content)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(())
     }
 
     /// Kick a user from a room
-    pub async fn kick_user(&self, room_id: &str, user_id: &str, reason: Option<&str>) -> Result<(), AppError> {
+    pub async fn kick_user(
+        &self,
+        room_id: &str,
+        user_id: &str,
+        reason: Option<&str>,
+    ) -> Result<(), AppError> {
         let room_id = validate_room_id(room_id)?;
         let room = self.get_joined_room(&room_id)?;
-        let uid: OwnedUserId = user_id.try_into()
+        let uid: OwnedUserId = user_id
+            .try_into()
             .map_err(|_| AppError::InvalidInput("Invalid user ID".into()))?;
-        room.kick_user(&uid, reason).await
+        room.kick_user(&uid, reason)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(())
     }
 
     /// Ban a user from a room
-    pub async fn ban_user(&self, room_id: &str, user_id: &str, reason: Option<&str>) -> Result<(), AppError> {
+    pub async fn ban_user(
+        &self,
+        room_id: &str,
+        user_id: &str,
+        reason: Option<&str>,
+    ) -> Result<(), AppError> {
         let room_id = validate_room_id(room_id)?;
         let room = self.get_joined_room(&room_id)?;
-        let uid: OwnedUserId = user_id.try_into()
+        let uid: OwnedUserId = user_id
+            .try_into()
             .map_err(|_| AppError::InvalidInput("Invalid user ID".into()))?;
-        room.ban_user(&uid, reason).await
+        room.ban_user(&uid, reason)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(())
     }
@@ -1599,9 +2148,11 @@ impl MatrixClient {
     pub async fn unban_user(&self, room_id: &str, user_id: &str) -> Result<(), AppError> {
         let room_id = validate_room_id(room_id)?;
         let room = self.get_joined_room(&room_id)?;
-        let uid: OwnedUserId = user_id.try_into()
+        let uid: OwnedUserId = user_id
+            .try_into()
             .map_err(|_| AppError::InvalidInput("Invalid user ID".into()))?;
-        room.unban_user(&uid, None).await
+        room.unban_user(&uid, None)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(())
     }
@@ -1611,7 +2162,9 @@ impl MatrixClient {
         let room_id = validate_room_id(room_id)?;
         let room = self.get_joined_room(&room_id)?;
         use matrix_sdk::ruma::events::room::member::{MembershipState, RoomMemberEventContent};
-        let members = room.get_state_events_static::<RoomMemberEventContent>().await
+        let members = room
+            .get_state_events_static::<RoomMemberEventContent>()
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         let mut banned = Vec::new();
         for raw in members {
@@ -1625,7 +2178,9 @@ impl MatrixClient {
                             continue;
                         }
                     }
-                    SyncOrStrippedState::Stripped(s) => (s.state_key.to_string(), Some(s.content.clone())),
+                    SyncOrStrippedState::Stripped(s) => {
+                        (s.state_key.to_string(), Some(s.content.clone()))
+                    }
                 };
                 if let Some(c) = content {
                     if c.membership == MembershipState::Ban {
@@ -1641,14 +2196,20 @@ impl MatrixClient {
     }
 
     /// Set server ACL for a room
-    pub async fn set_server_acl(&self, room_id: &str, allow: Vec<String>, deny: Vec<String>) -> Result<(), AppError> {
+    pub async fn set_server_acl(
+        &self,
+        room_id: &str,
+        allow: Vec<String>,
+        deny: Vec<String>,
+    ) -> Result<(), AppError> {
         let room_id = validate_room_id(room_id)?;
         let room = self.get_joined_room(&room_id)?;
         use matrix_sdk::ruma::events::room::server_acl::RoomServerAclEventContent;
         let mut content = RoomServerAclEventContent::new(false, vec![], vec![]);
         content.allow = allow;
         content.deny = deny;
-        room.send_state_event(content).await
+        room.send_state_event(content)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(())
     }
@@ -1656,13 +2217,15 @@ impl MatrixClient {
     /// Upgrade room to a new version
     pub async fn upgrade_room(&self, room_id: &str, new_version: &str) -> Result<String, AppError> {
         let room_id = validate_room_id(room_id)?;
-        let version: matrix_sdk::ruma::RoomVersionId = new_version.try_into()
-            .map_err(|_| AppError::InvalidInput(format!("Invalid room version: {}", new_version)))?;
-        let request = matrix_sdk::ruma::api::client::room::upgrade_room::v3::Request::new(
-            room_id,
-            version,
-        );
-        let response = self.client.send(request).await
+        let version: matrix_sdk::ruma::RoomVersionId = new_version.try_into().map_err(|_| {
+            AppError::InvalidInput(format!("Invalid room version: {}", new_version))
+        })?;
+        let request =
+            matrix_sdk::ruma::api::client::room::upgrade_room::v3::Request::new(room_id, version);
+        let response = self
+            .client
+            .send(request)
+            .await
             .map_err(|e| AppError::Matrix(e.to_string()))?;
         Ok(response.replacement_room.to_string())
     }
@@ -1670,7 +2233,8 @@ impl MatrixClient {
 
 /// Convert a sync room message event to our TimelineMessage
 fn timeline_message_from_sync_event(event: &OriginalSyncRoomMessageEvent) -> TimelineMessage {
-    let (body, formatted_body, msg_type, media_url, media_info) = extract_message_content(&event.content.msgtype);
+    let (body, formatted_body, msg_type, media_url, media_info) =
+        extract_message_content(&event.content.msgtype);
 
     let reply_to = match &event.content.relates_to {
         Some(Relation::Reply { in_reply_to }) => Some(in_reply_to.event_id.to_string()),
@@ -1712,9 +2276,7 @@ fn timeline_message_from_any_event(event: &AnyTimelineEvent) -> Option<TimelineM
                     extract_message_content(&original.content.msgtype);
 
                 let reply_to = match &original.content.relates_to {
-                    Some(Relation::Reply { in_reply_to }) => {
-                        Some(in_reply_to.event_id.to_string())
-                    }
+                    Some(Relation::Reply { in_reply_to }) => Some(in_reply_to.event_id.to_string()),
                     _ => None,
                 };
 
@@ -1722,7 +2284,9 @@ fn timeline_message_from_any_event(event: &AnyTimelineEvent) -> Option<TimelineM
                     matches!(&original.content.relates_to, Some(Relation::Replacement(_)));
 
                 let replaces = match &original.content.relates_to {
-                    Some(Relation::Replacement(replacement)) => Some(replacement.event_id.to_string()),
+                    Some(Relation::Replacement(replacement)) => {
+                        Some(replacement.event_id.to_string())
+                    }
                     _ => None,
                 };
 
@@ -1750,7 +2314,15 @@ fn timeline_message_from_any_event(event: &AnyTimelineEvent) -> Option<TimelineM
     }
 }
 /// Extract body, formatted_body, msg_type, media_url, and media_info from MessageType
-fn extract_message_content(msgtype: &MessageType) -> (String, Option<String>, String, Option<String>, Option<MediaInfo>) {
+fn extract_message_content(
+    msgtype: &MessageType,
+) -> (
+    String,
+    Option<String>,
+    String,
+    Option<String>,
+    Option<MediaInfo>,
+) {
     match msgtype {
         MessageType::Text(text) => {
             let formatted = text.formatted.as_ref().map(|f| f.body.clone());
@@ -1758,7 +2330,13 @@ fn extract_message_content(msgtype: &MessageType) -> (String, Option<String>, St
         }
         MessageType::Notice(notice) => {
             let formatted = notice.formatted.as_ref().map(|f| f.body.clone());
-            (notice.body.clone(), formatted, "m.notice".into(), None, None)
+            (
+                notice.body.clone(),
+                formatted,
+                "m.notice".into(),
+                None,
+                None,
+            )
         }
         MessageType::Emote(emote) => {
             let formatted = emote.formatted.as_ref().map(|f| f.body.clone());
@@ -1766,7 +2344,11 @@ fn extract_message_content(msgtype: &MessageType) -> (String, Option<String>, St
         }
         MessageType::Image(img) => {
             let url = extract_media_source_url(&img.source);
-            let thumb_url = img.info.as_ref().and_then(|i| i.thumbnail_source.as_ref()).and_then(extract_media_source_url_opt);
+            let thumb_url = img
+                .info
+                .as_ref()
+                .and_then(|i| i.thumbnail_source.as_ref())
+                .and_then(extract_media_source_url_opt);
             let info = img.info.as_ref().map(|i| MediaInfo {
                 mimetype: i.mimetype.as_ref().map(|m| m.to_string()),
                 size: i.size.map(|s| s.into()),
@@ -1780,7 +2362,11 @@ fn extract_message_content(msgtype: &MessageType) -> (String, Option<String>, St
         }
         MessageType::Video(video) => {
             let url = extract_media_source_url(&video.source);
-            let thumb_url = video.info.as_ref().and_then(|i| i.thumbnail_source.as_ref()).and_then(extract_media_source_url_opt);
+            let thumb_url = video
+                .info
+                .as_ref()
+                .and_then(|i| i.thumbnail_source.as_ref())
+                .and_then(extract_media_source_url_opt);
             let info = video.info.as_ref().map(|i| MediaInfo {
                 mimetype: i.mimetype.as_ref().map(|m| m.to_string()),
                 size: i.size.map(|s| s.into()),
@@ -1818,7 +2404,13 @@ fn extract_message_content(msgtype: &MessageType) -> (String, Option<String>, St
             });
             (file.body.clone(), None, "m.file".into(), url, info)
         }
-        _ => ("Unsupported message type".into(), None, "unknown".into(), None, None),
+        _ => (
+            "Unsupported message type".into(),
+            None,
+            "unknown".into(),
+            None,
+            None,
+        ),
     }
 }
 
@@ -1847,7 +2439,6 @@ fn get_data_dir_for_user(user_id: Option<&str>) -> PathBuf {
     std::fs::create_dir_all(&dir).ok();
     dir
 }
-
 
 fn get_or_create_db_passphrase_for_user(user_id: Option<&str>) -> Result<String, AppError> {
     use crate::store::keychain;
@@ -1904,7 +2495,6 @@ pub fn clear_db_passphrase() -> Result<(), AppError> {
     clear_db_passphrase_for_user(None)
 }
 
-
 // ----------------------------------------------------------
 // Power Levels & Moderation (Phase 5)
 // ----------------------------------------------------------
@@ -1930,4 +2520,3 @@ pub struct BannedUser {
     pub user_id: String,
     pub reason: Option<String>,
 }
-

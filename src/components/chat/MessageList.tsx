@@ -1,6 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useMessagesStore, TimelineMessage } from "../../stores/messages";
+import { useModerationStore } from "../../stores/moderation";
 import MessageBubble from "./MessageBubble";
 import styles from "./MessageList.module.css";
 
@@ -19,6 +20,7 @@ export default function MessageList({ roomId }: MessageListProps) {
   const setMessages = useMessagesStore((s) => s.setMessages);
   const prependMessages = useMessagesStore((s) => s.prependMessages);
   const setLoading = useMessagesStore((s) => s.setLoading);
+  const ignoredUsers = useModerationStore((s) => s.ignoredUsers);
   const [error, setError] = useState<string | null>(null);
 
   const listRef = useRef<HTMLDivElement>(null);
@@ -27,6 +29,7 @@ export default function MessageList({ roomId }: MessageListProps) {
   const isAtBottom = useRef(true);
 
   const messages = room?.messages ?? [];
+  const visibleMessages = messages.filter((message) => !ignoredUsers.includes(message.sender));
   const hasMore = room?.hasMore ?? true;
   const isLoading = room?.isLoading ?? false;
   const endToken = room?.endToken ?? null;
@@ -84,11 +87,11 @@ export default function MessageList({ roomId }: MessageListProps) {
 
   // Auto-scroll on new messages
   useEffect(() => {
-    if (messages.length > prevMsgCount.current && isAtBottom.current) {
+    if (visibleMessages.length > prevMsgCount.current && isAtBottom.current) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-    prevMsgCount.current = messages.length;
-  }, [messages.length]);
+    prevMsgCount.current = visibleMessages.length;
+  }, [visibleMessages.length]);
 
   // Scroll to bottom on initial load
   useEffect(() => {
@@ -98,15 +101,15 @@ export default function MessageList({ roomId }: MessageListProps) {
   // Mark last message as read (debounced, only for new messages)
   const lastMarkedRef = useRef<string | null>(null);
   useEffect(() => {
-    if (messages.length === 0) return;
-    const last = messages[messages.length - 1];
+    if (visibleMessages.length === 0) return;
+    const last = visibleMessages[visibleMessages.length - 1];
     if (last.eventId === lastMarkedRef.current) return;
     const timer = setTimeout(() => {
       lastMarkedRef.current = last.eventId;
       invoke("mark_read", { roomId, eventId: last.eventId }).catch(() => {});
     }, 500);
     return () => clearTimeout(timer);
-  }, [messages.length, roomId]);
+  }, [visibleMessages, roomId]);
 
   return (
     <div className={styles.messageList} ref={listRef} onScroll={handleScroll}>
@@ -130,11 +133,15 @@ export default function MessageList({ roomId }: MessageListProps) {
         </div>
       )}
 
+      {visibleMessages.length === 0 && messages.length > 0 && !isLoading && !error && (
+        <div className={styles.empty}>Ignored users' messages are hidden in this room.</div>
+      )}
+
       {messages.length === 0 && !isLoading && !error && (
         <div className={styles.empty}>No messages yet. Say hello!</div>
       )}
 
-      {messages.map((msg) => (
+      {visibleMessages.map((msg) => (
         <MessageBubble
           key={msg.eventId}
           message={msg}

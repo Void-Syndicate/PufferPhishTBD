@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { TimelineMessage } from "../../stores/messages";
+import { useModerationStore } from "../../stores/moderation";
 import styles from "./SearchBar.module.css";
 
 interface SearchBarProps {
@@ -14,6 +15,7 @@ export default function SearchBar({ roomId, onClose }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const ignoredUsers = useModerationStore((state) => state.ignoredUsers);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -41,6 +43,8 @@ export default function SearchBar({ roomId, onClose }: SearchBarProps) {
     if (e.key === "Escape") onClose();
   };
 
+  const visibleResults = results.filter((result) => !ignoredUsers.includes(result.sender));
+
   return (
     <div className={styles.searchBar}>
       <div className={styles.inputRow}>
@@ -56,9 +60,9 @@ export default function SearchBar({ roomId, onClose }: SearchBarProps) {
         <button className={styles.closeBtn} onClick={onClose}>{"\u2715"}</button>
       </div>
       {searching && <div className={styles.status}>Searching...</div>}
-      {results.length > 0 && (
+      {visibleResults.length > 0 && (
         <div className={styles.results}>
-          {results.map((r) => (
+          {visibleResults.map((r) => (
             <div key={r.eventId} className={styles.resultItem}>
               <span className={styles.resultSender}>{r.senderName || r.sender}</span>
               <span className={styles.resultBody}>{r.body}</span>
@@ -69,7 +73,7 @@ export default function SearchBar({ roomId, onClose }: SearchBarProps) {
           ))}
         </div>
       )}
-      {!searching && query.length >= 2 && results.length === 0 && (
+      {!searching && query.length >= 2 && visibleResults.length === 0 && (
         <div className={styles.status}>No results found.</div>
       )}
     </div>

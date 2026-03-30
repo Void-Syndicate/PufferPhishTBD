@@ -2,8 +2,8 @@ mod commands;
 mod error;
 mod link_preview;
 mod matrix;
-mod store;
 mod phase8;
+mod store;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -39,7 +39,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Auth
             commands::restore_session,
+            commands::discover_homeserver_from_matrix_id,
+            commands::discover_auth_flows,
             commands::matrix_login,
+            commands::matrix_register,
+            commands::matrix_login_sso,
             commands::matrix_logout,
             commands::set_display_name,
             // Rooms
@@ -55,6 +59,9 @@ pub fn run() {
             commands::send_typing,
             commands::mark_read,
             commands::get_room_members,
+            commands::get_ignored_users,
+            commands::ignore_user,
+            commands::unignore_user,
             commands::search_messages,
             commands::resolve_mxc_url,
             commands::get_user_avatar,
@@ -135,6 +142,9 @@ pub fn run() {
             commands::unban_user,
             commands::get_banned_users,
             commands::set_server_acl,
+            commands::report_room,
+            commands::report_message,
+            commands::report_user,
             // Media (full URL resolver)
             commands::resolve_mxc_full_url,
             // Link Preview
@@ -178,4 +188,3 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running PufferChat");
 }
-
